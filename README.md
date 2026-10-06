@@ -31,6 +31,15 @@ make static BASE_PATH=/<проект>/   # статическая сборка �
 
 Данные кейса фиксированные, поэтому сайт может работать без сервера. `python -m app.export_static` вызывает настоящие маршруты API и выгружает ответы в JSON. Фронт со сборкой `VITE_STATIC=1` читает эти файлы, а калькулятор эффекта считает в браузере: формулы сверяются с Python тестом.
 
+### Vercel (из приватного репозитория, бесплатно)
+
+`vercel.json` и `scripts/vercel-build.sh` уже настроены: Vercel сам собирает статику при каждом пуше в `main`.
+
+1. https://vercel.com → **Add New… → Project** → импортировать `overdobro/allur-digital-twin`. Root Directory оставить корнем репозитория, остальные настройки подтянутся из `vercel.json`.
+2. Необязательно: **Settings → Environment Variables → `ANTHROPIC_API_KEY`**, затем Redeploy. Тогда рекомендации Claude сгенерируются при сборке, а сам ключ в сайт не попадёт.
+
+Сборка: Python 3.12 выгружает ответы API в JSON, затем фронтенд собирается в статическом режиме. В Amazon Linux 2023, на котором работает Vercel, `python3` — это 3.9, поэтому скрипт сам выбирает версию 3.10+. Прямые ссылки (`/whatif`, `/sections/painting`) отдаются через rewrite на `index.html`.
+
 ### CI (GitHub Actions)
 
 - `.github/workflows/ci.yml` — на каждый пуш в `main` и pull request: тесты бэкенда; экспорт → `tsc` → `vitest` → сборка фронтенда (обычная и статическая); сборка Docker-образов.
