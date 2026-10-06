@@ -1,0 +1,19 @@
+.env
+backend/.venv/
+__pycache__/
+.pytest_cache/
+frontend/node_modules/
+frontend/dist/
+*.png
+!docs/**
+.idea/
+frontend/public/static-api/
+/public/
+# Фото из 2ГИС — сторонние снимки, только локальный референс
+docs/webp/
+e2e.png
+.claude/
+# Рабочие заметки и служебные инструкции — только локально
+PLAN.md
+CLAUDE.md
+AGENTS.md
