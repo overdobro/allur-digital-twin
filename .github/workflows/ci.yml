@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend — тесты
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q
+
+  frontend:
+    name: Frontend — типы, тесты, сборка
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # Эталон для сверки формул фронтенда с Python и данные статической сборки
+      - name: Экспорт ответов API в JSON
+        working-directory: backend
+        run: |
+          pip install -r requirements-dev.txt
+          python -m app.export_static ../frontend/public/static-api
+      - working-directory: frontend
+        run: npm ci --no-audit --no-fund
+      - working-directory: frontend
+        run: npx tsc -b
+      - working-directory: frontend
+        run: npx vitest run
+      - name: Сборка (сервер и статика)
+        working-directory: frontend
+        run: |
+          npm run build
+          npm run build:static
+
+  docker:
+    name: Docker — сборка образов
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose build

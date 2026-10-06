@@ -4,7 +4,7 @@ import type {
   Advice, Downtime, Effect, Forecast, LineMetrics, Meta, Overview, QualityRow, ReplayStep, RiskResponse, SectionDetail,
 } from "./types";
 
-/** Статический режим (GitLab Pages): ответы API заранее выгружены в JSON, сервера нет. */
+/** Статический режим (GitHub Pages): ответы API заранее выгружены в JSON, сервера нет. */
 export const STATIC = import.meta.env.VITE_STATIC === "1";
 const BASE = STATIC ? `${import.meta.env.BASE_URL}static-api/` : (import.meta.env.VITE_API_URL ?? "/api");
 

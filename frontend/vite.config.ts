@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
-  // GitLab Pages отдаёт проект по подпути /<проект>/
+  // GitHub Pages отдаёт проект по подпути /<репозиторий>/
   base: process.env.BASE_PATH ?? "/",
   plugins: [react()],
   server: {

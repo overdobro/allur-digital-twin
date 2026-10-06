@@ -1,7 +1,7 @@
 import type { Effect } from "../api/types";
 
 /**
- * Копия backend/app/services/effect.py → effect_calc для статического режима (GitLab Pages без сервера).
+ * Копия backend/app/services/effect.py → effect_calc для статического режима (хостинг без сервера).
  * Совпадение с Python проверяется тестом effect.test.ts на эталонных случаях из экспорта.
  */
 export interface EffectInputs {

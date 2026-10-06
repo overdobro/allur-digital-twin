@@ -42,7 +42,7 @@ test: ## Тесты backend + frontend (формулы статики сверя
 	cd frontend && npx tsc -b && npx vitest run
 
 BASE_PATH ?= /
-static: ## Статическая сборка для GitLab Pages → public/ (BASE_PATH=/<проект>/)
+static: ## Статическая сборка (GitHub Pages и др.) → public/ (BASE_PATH=/<репозиторий>/)
 	cd backend && .venv/bin/python -m app.export_static ../frontend/public/static-api
 	cd frontend && BASE_PATH=$(BASE_PATH) npm run build:static
 	rm -rf public && cp -r frontend/dist public
