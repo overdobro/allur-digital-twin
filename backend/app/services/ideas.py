@@ -103,23 +103,105 @@ def plant_context(repo: Repository) -> dict:
 
 # ---------- правила (без LLM) ----------
 
+# Участок — по числу совпадений (а не по первому): «буфер окрашенных кузовов перед сборкой» — это Сборка
 KEYWORDS = {
-    "painting": r"окрас|краск|лкп|камер|фильтр|катафор|грунт|полиров|влажн",
-    "welding": r"свар|кондуктор|клещ|abb|геометр|кузовн",
-    "assembly": r"сборк|конвейер|подвес|цеп|свадьб|двигател",
-    "qc": r"тест|контрол|отк|развал|тормоз|water|дождев|диагност|vin",
-    "warehouse_in": r"склад|комплектующ|погрузчик|логистик|тара",
+    "painting": r"окрас|покрас|краск|лкп|лак|эмал|камер|фильтр|катафор|грунт|полиров|влажн|сушк|герметиз|пыл",
+    "welding": r"свар|кондуктор|клещ|abb|геометр|кузовн|подсборк|точечн",
+    "assembly": r"сборк|сборщик|конвейер|подвес|цеп|свадьб|двигател|мотор|колёс|колес|салон|навесн",
+    "qc": r"тест|контрол|отк|развал|тормоз|water|дождев|диагност|vin|испытан|дефектовк",
+    "warehouse_in": r"склад\w* комплект|комплектующ|погрузчик|логистик|тара|поставк|стеллаж|подач\w* детал",
+    "warehouse_out": r"готов\w* продукц|отгрузк|стоянк|склад\w* готов",
 }
 OBJECT_KEYWORDS = [
     ("robot", r"робот"), ("sensor", r"датчик|сенсор|вибрац|давлени|влажн|температур"), ("buffer", r"буфер|накопител"),
     ("inspection", r"машинн\w* зрени|камер\w* контрол|сканер"), ("compressor", r"компрессор"), ("andon", r"андон|светов\w* индикац"),
 ]
 PROBLEM_DRIVERS = {
-    "painting": r"брак|дефект|фильтр|камер|влажн|краск|окрас",  # брак 5,2%, Камера-02
-    "welding": r"темп|робот|геометр|abb|простой|выпуск|смен|то ",  # темп 111/120, OEE 81%
+    "painting": r"брак|дефект|фильтр|камер|влажн|краск|окрас|пыл",  # брак 5,2%, Камера-02
+    "welding": r"темп|робот|геометр|abb|простой|выпуск|смен|\bто\b",  # темп 111/120, OEE 81%
     "assembly": r"конвейер|цеп|простой|обрыв|буфер",  # Конвейер-03 — 55 мин
 }
-HIGH_COMPLEXITY = r"робот|линию|цех|полностью|автоматическ|машинн\w* зрени|перенос|третья смен"
+
+# Тип идеи: от него зависят механизм эффекта, типичные риски и что проверять. Порядок — приоритет.
+KINDS: list[tuple[str, str]] = [
+    ("capacity", r"трет\w* смен|дополнительн\w* смен|сверхуроч|выходн\w* дн"),
+    ("people", r"обучен|тренаж|наставн|квалификац|\bar\b|\bvr\b|мотивац|геймиф|балл|конкурс"),
+    ("maintenance", r"\bто\b|техобслуж|предиктив|запасн|зип|смазк|износ|ремонт"),
+    ("process", r"чек-лист|регламент|стандарт|инструкц|процедур|график|расписан|пересменк|смен[аеуы]\b|смену"),
+    ("digital", r"цифров|паспорт|vin|приложен|\bqr\b|табло|дашборд|экран|учёт|учет|трекинг|база данн"),
+    ("logistics", r"погрузчик|дорожк|разметк|тара|подач|логист|маршрут"),
+    ("safety", r"безопасн|травм|ограждени|\bсиз\b"),
+]
+KIND_INFO: dict[str, dict] = {
+    "capacity": {"label": "увеличение рабочего времени",
+                 "how": "Добавляет часы работы участка: выпуск растёт сразу, но растут и затраты на персонал.",
+                 "risks": ["затраты на оплату труда и усталость персонала", "узкое место может сместиться на соседний участок"],
+                 "check": "выпуск участка за дополнительные часы и брак в них"},
+    "equipment": {"label": "изменение оборудования",
+                  "how": "Меняет расстановку или состав оборудования — эффект на выпуск можно проверить на 3D-модели до покупки."},
+    "maintenance": {"label": "мера по обслуживанию оборудования",
+                    "how": "Снижает внезапные остановы: оборудование чинят до отказа, а не после.",
+                    "risks": ["история отказов короткая — в кейсе 2 дня данных", "запас ЗИП замораживает оборотные средства"],
+                    "check": "число внезапных остановов и их длительность до и после"},
+    "process": {"label": "организационная мера",
+                "how": "Дешёвая и быстрая мера: эффект зависит от того, соблюдают ли её на каждой смене.",
+                "risks": ["без контроля регламент перестают соблюдать через 2–3 недели", "добавляет время на операцию"],
+                "check": "доля смен, где мера реально выполнена"},
+    "people": {"label": "мера по развитию персонала",
+               "how": "Работает через навыки и вовлечённость людей — эффект проявляется не сразу.",
+               "risks": ["нужно время на обучение вне смены", "эффект трудно измерить быстро"],
+               "check": "ошибки и брак у обученных и необученных сотрудников"},
+    "digital": {"label": "цифровое решение",
+                "how": "Даёт прозрачность: сам по себе выпуск не меняет, но сокращает время реакции на отклонение.",
+                "risks": ["интеграция с текущими системами учёта", "данные нужно поддерживать в актуальном виде"],
+                "check": "время от отклонения до реакции мастера"},
+    "logistics": {"label": "изменение внутренней логистики",
+                  "how": "Упорядочивает потоки материалов и транспорта внутри цеха.",
+                  "risks": ["изменение маршрутов нужно согласовать с охраной труда", "временно мешает текущим проездам"],
+                  "check": "время подачи комплектующих на участок"},
+    "safety": {"label": "мера безопасности",
+               "how": "Снижает риск травм и аварий — эффект в рисках, а не в выпуске.",
+               "risks": ["нужно согласование с охраной труда"],
+               "check": "число нарушений и инцидентов"},
+    "other": {"label": "предложение", "how": "Механизм эффекта из текста не ясен — его стоит описать конкретнее.",
+              "risks": [], "check": "измеримый показатель эффекта"},
+}
+OBJECT_RISKS = {
+    "robot": ["наладка и программирование робота, ограждение ячейки", "простой участка на время монтажа"],
+    "sensor": ["калибровка и ложные срабатывания", "интеграция данных с цифровым двойником"],
+    "buffer": ["занимает площадь и может перекрыть проходы", "буфер сглаживает остановки, но не поднимает темп"],
+    "inspection": ["обучение модели на дефектах, ложные срабатывания", "камеры ловят брак, а не устраняют причину"],
+    "compressor": ["работы с магистралями требуют остановки участка", "эффект на брак — гипотеза"],
+    "andon": ["без регламента реакции сигнал игнорируют", "в модели выпуска эффекта нет"],
+}
+ACTION_WORD = {"add": "добавить", "move": "переместить", "remove": "убрать"}
+OBJECT_WORD = {"robot": "робот", "sensor": "датчик", "buffer": "буфер", "inspection": "пост контроля",
+               "compressor": "компрессорная", "andon": "андон", "workstation": "рабочий пост"}
+
+
+def _lc(s: str) -> str:
+    """Первая буква строчная, кроме аббревиатур (OEE, ABB-01)."""
+    return s if len(s) > 1 and s[1].isupper() else s[:1].lower() + s[1:]
+
+
+def idea_kind(t: str, obj: str | None) -> str:
+    if obj:
+        return "equipment"
+    return next((k for k, rx in KINDS if re.search(rx, t)), "other")
+
+
+def detect_section(t: str, repo: Repository) -> str | None:
+    """Участок по числу совпадений ключевых слов; оборудование из данных (ABB-01, Камера-02…) весит больше."""
+    counts = {s: len(re.findall(rx, t)) for s, rx in KEYWORDS.items()}
+    by_name = {x["name"]: x["id"] for x in repo.sections}
+    for d in repo.downtime:
+        if re.search(_equipment_pattern(d["equipment"]), t) and d["section"] in by_name:
+            counts[by_name[d["section"]]] += 2
+    best = max(counts.items(), key=lambda kv: kv[1])
+    return best[0] if best[1] > 0 else None
+
+
+HIGH_COMPLEXITY = r"робот\w* на|нов\w* робот|втор\w* робот|трет\w* робот|линию|цех\b|полностью|автоматическ|машинн\w* зрени|перенос\w* компрессор|третья смен"
 LOW_COMPLEXITY = r"чек-лист|регламент|обучен|расписан|индикац|запасн|разметк|дорожк|датчик"
 UNREALISTIC = r"полностью|без людей|100\s?%|никогда|все линии сразу"
 
@@ -139,34 +221,65 @@ def scenario_from_text(t: str) -> tuple[str | None, str]:
 
 
 def rules_evaluate(title: str, text: str, section_id: str | None, repo: Repository) -> dict:
+    """Оценка без LLM: участок, тип идеи и её связь с реальной проблемой участка по данным кейса."""
     t = f"{title} {text}".lower()
-    sec = section_id or next((s for s, rx in KEYWORDS.items() if re.search(rx, t)), None)
-    risks = {r["section_id"]: r for r in section_risks(repo)}
-    problem = sec in risks and risks[sec]["level"]["code"] in ("high", "medium")
+    sec = section_id or detect_section(t, repo)
+    risks_by = {r["section_id"]: r for r in section_risks(repo)}
+    sr = risks_by.get(sec)
+    problem = bool(sr and sr["level"]["code"] in ("high", "medium"))
+    evidence = sr["factors"][0]["evidence"] if sr and sr["factors"] else None
     # Высокий эффект — только если идея бьёт в драйвер проблемы участка (по данным кейса)
     on_driver = bool(sec and re.search(PROBLEM_DRIVERS.get(sec, r"$^"), t))
-    effect = "high" if problem and on_driver else ("medium" if sec else "low")
-    complexity = "high" if re.search(HIGH_COMPLEXITY, t) else ("low" if re.search(LOW_COMPLEXITY, t) else "medium")
-    realism = "low" if re.search(UNREALISTIC, t) else ("medium" if complexity == "high" else "high")
     obj, action = scenario_from_text(t)
+    kind = idea_kind(t, obj)
+    info = KIND_INFO[kind]
+    effect = "high" if problem and on_driver else ("medium" if sec else "low")
+    if kind in ("digital", "people", "safety") and effect == "high":
+        effect = "medium"  # прозрачность и навыки сами выпуск не меняют — эффект косвенный
+    complexity = "high" if re.search(HIGH_COMPLEXITY, t) else ("low" if re.search(LOW_COMPLEXITY, t) or kind in ("process", "maintenance") else "medium")
+    realism = "low" if re.search(UNREALISTIC, t) else ("medium" if complexity == "high" else "high")
     name = repo.section_by_id(sec)["name"] if sec else None
+
     checks = {
         "painting": ["брак окраски до и после (сейчас 5,2% при норме ≤2%)", "простои Камеры-02"],
         "welding": ["выполнение плана Сварки (02.10 — 92,5%)", "расчётный OEE Сварки (81,0%)"],
         "assembly": ["простои Конвейера-03 (02.10 — 55 мин)", "выпуск Сборки за смену"],
         "qc": ["доля дефектов, выявленных на тестовой линии", "время прохождения тестов"],
         "warehouse_in": ["задержки подачи комплектующих", "безопасность проездов"],
+        "warehouse_out": ["время от схода с линии до отгрузки", "повреждения при хранении"],
     }.get(sec, ["измеримый показатель эффекта", "затраты на внедрение"])
-    risk_list = (["ограниченные данные: 2 дня наблюдений"] + (["нужны инвестиции и согласование с производством"] if complexity == "high" else [])
-                 + (["эффект не подтверждён данными кейса"] if not problem else []))
+    if info.get("check"):
+        checks = checks + [info["check"]]
+
+    risk_list = list(OBJECT_RISKS.get(obj, []) if kind == "equipment" else info.get("risks", []))
+    if complexity == "high" and kind != "equipment":
+        risk_list.append("нужны инвестиции и согласование с производством")
+    if not problem:
+        risk_list.append("эффект не подтверждён данными кейса: на участке нет острых отклонений")
+    risk_list.append("ограниченные данные: 2 дня наблюдений")
+
     next_step = "expert" if realism == "low" else ("3d_check" if obj else ("pilot" if complexity == "low" else "expert"))
-    summary = (f"Идея относится к участку «{name}»" + (", где сейчас есть отклонения по данным" if problem else "") + "." if name
-               else "Участок не определён — уточните, к какому участку относится идея.")
+
+    if not name:
+        summary = f"Это {info['label']}, но участок не определён — уточните, на каком участке её внедрять, тогда оценка будет точнее."
+    else:
+        summary = f"Это {info['label']} на участке «{name}»."
+        if problem and on_driver and evidence and kind in ("digital", "people", "safety"):
+            summary += f" Идея связана с главной проблемой участка ({_lc(evidence)}), но действует косвенно."
+        elif problem and on_driver and evidence:
+            summary += f" Идея бьёт в главную проблему участка: {_lc(evidence)}."
+        elif problem and evidence:
+            summary += f" На участке есть отклонение ({_lc(evidence)}), но идея направлена не на него — эффект для плана ниже."
+        else:
+            summary += " По данным кейса острых отклонений на участке нет — эффект скорее поддерживающий."
+    summary += " " + info["how"]
+    if obj and sec:
+        summary += f" Предлагаемое изменение для 3D: {ACTION_WORD[action]} «{OBJECT_WORD.get(obj, obj)}»."
     if realism == "low":
-        summary += " Формулировка выглядит слишком масштабной для пилота — стоит сузить."
+        summary += " Формулировка слишком масштабная для пилота — стоит сузить до одного поста или участка."
     return {
         "summary": summary, "section_id": sec, "realism": realism, "effect": effect, "complexity": complexity,
-        "risks": risk_list[:4], "checks": checks, "next_step": next_step,
+        "risks": risk_list[:4], "checks": checks[:3], "next_step": next_step,
         "scenario": {"action": action, "object": obj, "section_id": sec, "note": "Предложено правилами по тексту идеи"} if obj and sec else None,
     }
 

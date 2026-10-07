@@ -112,3 +112,21 @@ def test_check3d_saved_by_author_only():
     r = demo("student_02").post(f"/api/ideas/{idea['id']}/check3d", json=body)
     assert r.status_code == 200 and r.json()["check3d"]["after"] == 4839 and r.json()["check3d"]["checked_at"]
     assert manager().get(f"/api/ideas/{idea['id']}").json()["check3d"]["bottleneck_after"] == "Окраска"
+
+
+def test_rules_explain_with_plant_data():
+    repo = get_repository()
+    r = ideas_svc.rules_evaluate
+    # Тип идеи определяет механизм и риски; повторные вызовы не накапливают риски
+    a = r("Датчик на фильтрах Камеры-02", "Датчик перепада давления на фильтре", None, repo)
+    a2 = r("Датчик на фильтрах Камеры-02", "Датчик перепада давления на фильтре", None, repo)
+    assert a["risks"] == a2["risks"] and len(set(a["risks"])) == len(a["risks"])
+    assert "брак 5,2%" in a["summary"] and "добавить «датчик»" in a["summary"]
+    assert "организационная мера" in r("Чек-лист после замены фильтра", "Регламент проверки камеры окраски", None, repo)["summary"]
+    third = r("Третья смена на Сварке", "Добавить третью смену в конце месяца", None, repo)
+    assert "увеличение рабочего времени" in third["summary"] and any("оплату труда" in x for x in third["risks"])
+    ar = r("AR-тренажёр для сварщиков", "Обучение работе с клещами, чтобы поднять темп Сварки", None, repo)
+    assert ar["effect"] == "medium" and "косвенно" in ar["summary"]  # навыки сами выпуск не меняют
+    # Участок — по числу совпадений и по оборудованию из данных
+    assert r("Буфер", "Буфер окрашенных кузовов перед сборкой, сборка не стоит", None, repo)["section_id"] == "assembly"
+    assert r("Проверка ABB-01", "Ежедневно проверять датчики", None, repo)["section_id"] == "welding"

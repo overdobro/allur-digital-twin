@@ -20,6 +20,12 @@ def test_rules_assess():
     assert any("Сварка → Окраска" in x for x in r["risks"])
     r2 = rules_assess({**PAYLOAD, "conflicts": ["Камера ЛКП (Камера-02)"]})
     assert r2["next_step"] == "fix_layout"
+    # Ответ без LLM содержательный: что изменилось, выпуск, узкое место, риск по виду оборудования
+    assert r["summary"].startswith("Добавлен: Робот (6 осей). Устойчивый выпуск 4752 → 4840 авто/мес (+88)")
+    assert "узкое место смещается с «Сварка» на «Окраска»" in r["summary"]
+    assert any(x.startswith("Робот:") for x in r["risks"]) and "ограничивает «Окраска»" in r["recommendation"]
+    r3 = rules_assess({**PAYLOAD, "changes": ["Убран: ABB-01"], "after": {"monthly": 4600, "bottleneck": "Сварка"}})
+    assert r3["next_step"] == "reject" and any("кто её возьмёт" in x for x in r3["risks"])
 
 
 def test_assess_endpoint_without_key():

@@ -26,10 +26,10 @@ export function AdviceSource({ advice }: { advice: Advice }) {
   );
 }
 
-function RiskCard({ risk, rec, focused }: { risk: Risk; rec: Recommendation; focused: boolean }) {
+function RiskCard({ risk, rec, focused, expanded = false }: { risk: Risk; rec: Recommendation; focused: boolean; expanded?: boolean }) {
   const st = levelStatus(risk.level.code, risk.stage);
   const max = Math.max(...risk.factors.map((f) => f.contribution), 1);
-  const [open, setOpen] = useState(focused);
+  const [open, setOpen] = useState(focused || expanded);
   const evidence = new Set(risk.factors.map((f) => f.evidence));
   const extraWhy = rec.why.filter((w) => !evidence.has(w));
   return (
@@ -163,7 +163,9 @@ function Bottleneck({ b }: { b: RiskResponse["bottleneck"] }) {
 }
 
 export default function AiRisk() {
-  const focus = (useLocation().state as { focus?: string } | null)?.focus;
+  const loc = useLocation();
+  const focus = (loc.state as { focus?: string } | null)?.focus;
+  const expand = new URLSearchParams(loc.search).get("open"); // ?open=painting — раскрыть карточку (режим презентации)
   const risk = useApi(api.risk, []);
   const advice = useApi(() => api.advice(), []);
   const [done, setDone] = useState(false);
@@ -190,8 +192,10 @@ export default function AiRisk() {
         </Card>
       </motion.div>
       <div className="space-y-4">
-        {risk.data.risks.map((r) => (
-          <motion.div key={r.section_id} variants={reveal}><RiskCard risk={r} rec={recFor(r)} focused={focus === r.section_id} /></motion.div>
+        {risk.data.risks.map((r, k) => (
+          <motion.div key={r.section_id} variants={reveal} data-tour={k === 0 ? "ai-advice" : undefined}>
+            <RiskCard key={expand === r.section_id ? "open" : "closed"} risk={r} rec={recFor(r)} focused={focus === r.section_id} expanded={expand === r.section_id} />
+          </motion.div>
         ))}
       </div>
       </motion.div>

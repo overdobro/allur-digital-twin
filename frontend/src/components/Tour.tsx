@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, createElement, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { STATIC } from "../api/client";
 import { GRANT_CHAIN } from "../lib/ideas";
@@ -11,7 +11,11 @@ import { GRANT_CHAIN } from "../lib/ideas";
  * Управление: → / Space / PageDown — дальше, ← / PageUp — назад, Esc — выход, F — полный экран.
  */
 
-interface Step { path: string; target: string | null; title: string; text: string; chapter: string; slide?: () => ReactNode; server?: boolean }
+interface Step {
+  path: string; target: string | null; title: string; text: string; chapter: string; slide?: () => ReactNode; server?: boolean;
+  /** Нажать кнопку [data-tour-click=…] на шаге — показать ответ AI вживую */
+  click?: string;
+}
 
 const CHAPTERS = ["О системе", "Завод сейчас", "AI и решения", "Люди и идеи", "Итог"];
 
@@ -37,6 +41,10 @@ const STEPS_ALL: Step[] = [
   // ---------- AI и решения ----------
   { chapter: "AI и решения", path: "/ai", target: "ai-pipeline", title: "AI-анализ",
     text: "Мониторинг → анализ отклонений → прогноз риска → рекомендации. Каждый вывод опирается на рассчитанные факторы из данных." },
+  { chapter: "AI и решения", path: "/ai", target: null, title: "Как отвечает AI", slide: SlideAnswers,
+    text: "Три места, где отвечает AI, формат ответа и два режима: Claude или правила." },
+  { chapter: "AI и решения", path: "/ai?open=painting", target: "ai-advice", title: "Ответ AI: рекомендация по участку",
+    text: "Так выглядит ответ: что случилось → почему (факторы из данных) → риск → что сделать до следующей смены. Метка источника показывает, кто сформулировал текст — Claude или правила; цифры в обоих случаях посчитаны кодом." },
   { chapter: "AI и решения", path: "/ai", target: "bottleneck", title: "Bottleneck Detector",
     text: "Окраска — проблема уже случилась. Сварка — назревает: OEE 94,2% → 81,0%, узкое место смещается на Сварку." },
   { chapter: "AI и решения", path: "/executive?ai=1", target: "exec-priorities", title: "Решение для руководителя",
@@ -45,6 +53,8 @@ const STEPS_ALL: Step[] = [
     text: "Двойник проигрывает решение заранее: без действий — 4 752 авто/мес, с рекомендациями AI — 5 002. Узкое место смещается со Сварки на Окраску; для 5 500 нужен темп ≈128/смену или дополнительные смены." },
   { chapter: "AI и решения", path: "/editor?idea=3", target: "editor-results", title: "3D-редактор: проверка до внедрения", server: true,
     text: "Добавили третьего робота на пост геометрии Сварки. Двойник сразу проверяет столкновения, проходы и свободное место и пересчитывает выпуск: 4 752 → 4 839 авто/мес, узкое место смещается Сварка → Окраска. Решение проверено до покупки оборудования." },
+  { chapter: "AI и решения", path: "/editor?idea=3", target: "editor-ai", title: "Ответ AI: оценка изменения", server: true, click: "editor-ai",
+    text: "Нажимаем «AI-оценка изменения». Ответ: что изменилось и что будет с выпуском, риски по виду оборудования (робот — наладка и ограждение ячейки), следующий шаг — пилот на одной смене. При пересечении габаритов шаг всегда «исправить расстановку»." },
   { chapter: "AI и решения", path: "/editor", target: "editor", title: "3D-редактор: проверка до внедрения", server: false,
     text: "Руководитель переставляет, добавляет и убирает оборудование. Двойник проверяет столкновения, проходы и свободное место и пересчитывает выпуск и узкое место — до покупки оборудования." },
   // ---------- Люди и идеи ----------
@@ -52,6 +62,8 @@ const STEPS_ALL: Step[] = [
     text: "Сотрудник отмечает начало и конец смены, записывает выполненные работы и сообщает о проблеме. Сообщение сразу попадает руководителю: слесарь слышит шум в цепи Конвейера-03 — это видно до того, как конвейер встанет." },
   { chapter: "Люди и идеи", path: "/ideas?idea=3", target: "ideas", title: "Идеи обучающихся · ALLUR IDEA GRANT", server: true,
     text: "Студенты колледжей и вузов предлагают улучшения. AI сразу оценивает идею по данным завода: реалистичность, эффект, сложность, риски. Балл считает код по прозрачной формуле; решение о гранте принимает эксперт, не AI." },
+  { chapter: "Люди и идеи", path: "/ideas?idea=3", target: "idea-ai", title: "Ответ AI: анализ идеи", server: true,
+    text: "Студент получает ответ сразу после отправки: тип идеи и связь с реальной проблемой участка, реалистичность, эффект, сложность, риски, что проверить, следующий шаг и балл 0–100. Балл считает код по формуле, а не модель." },
   { chapter: "Люди и идеи", path: "/check3d?idea=3", target: "check3d", title: "Проверь идею в 3D", server: true,
     text: "Идея студента применяется к цифровому двойнику: «второй робот на посту геометрии» даёт +87 авто/мес. Итог сохраняется в карточке идеи — комиссия видит не только текст, но и расчёт." },
   // ---------- Итог ----------
@@ -111,6 +123,45 @@ function SlideHow() {
       <p className="mt-4 text-sm text-muted">
         Честность данных: всё, что посчитано по допущению, помечено «расчётный»; допущения A1–A9 открыты в разделе «Допущения и методика».
         Цифры AI не придумывает — он получает уже рассчитанные факты.
+      </p>
+    </>
+  );
+}
+
+function SlideAnswers() {
+  const [mode, setMode] = useState<string | null>(null);
+  useEffect(() => {
+    if (STATIC) { setMode("static"); return; }
+    fetch(`${import.meta.env.VITE_API_URL ?? "/api"}/health`).then((r) => r.json()).then((h) => setMode(h.llm ? "claude" : "rules")).catch(() => setMode("rules"));
+  }, []);
+  const rows: [string, string, string][] = [
+    ["Руководителю", "что случилось → почему → риск → что сделать", "AI Risk, «Руководителю»"],
+    ["Оценка идеи", "тип и связь с проблемой участка, реалистичность, эффект, сложность, риски, что проверить, шаг, балл", "Мои идеи, Идеи и грант"],
+    ["Оценка изменения", "что изменилось, выпуск и узкое место, риски по оборудованию, следующий шаг", "3D-редактор"],
+  ];
+  return (
+    <>
+      <div className="grid gap-2">
+        {rows.map(([w, f, where]) => (
+          <div key={w} className="grid gap-1 rounded-xl border border-line bg-panel2/80 px-4 py-3 md:grid-cols-[170px_1fr_190px] md:items-center">
+            <b>{w}</b><span className="text-sm text-slate-300">{f}</span><span className="text-xs text-muted">{where}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <div className={`rounded-xl border p-4 ${mode === "claude" ? "border-[#d97757]" : "border-line"}`}>
+          <div className="text-xs font-semibold uppercase tracking-wider text-[#e8a184]">Claude</div>
+          <p className="mt-1 text-sm text-slate-300">Понимает идею своими словами, пишет связный текст по посчитанным фактам. Ответ строго по JSON-схеме.</p>
+        </div>
+        <div className={`rounded-xl border p-4 ${mode !== "claude" ? "border-slate-400" : "border-line"}`}>
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-300">Правила · без LLM</div>
+          <p className="mt-1 text-sm text-slate-300">Работают без интернета и ключа: тип идеи, участок, связь с проблемой по данным, риски по виду оборудования.</p>
+        </div>
+      </div>
+      <p className="mt-3 text-sm text-muted">
+        {mode === "claude" ? "Сейчас отвечает Claude; при сбое сети ответ автоматически соберут правила." :
+          mode === "static" ? "Статическая версия: рекомендации подготовлены при сборке, оценка изменений — правилами в браузере." :
+          "Сейчас ключ Claude не подключён — отвечают правила. Числа одинаковы в обоих режимах: их считает код."}
       </p>
     </>
   );
@@ -184,6 +235,18 @@ export function TourProvider({ children }: { children: ReactNode }) {
   }, [active, step, go]);
 
   const rect = useTargetRect(cur?.target ?? null, [step]);
+  // Шаг с ответом AI: дождаться кнопки и нажать её один раз
+  useEffect(() => {
+    const sel = cur?.click;
+    if (!sel) return;
+    const started = performance.now();
+    const t = window.setInterval(() => {
+      const b = document.querySelector<HTMLButtonElement>(`[data-tour-click="${sel}"]`);
+      if (b && !b.disabled) { b.click(); window.clearInterval(t); }
+      else if (performance.now() - started > 15_000) window.clearInterval(t);
+    }, 300);
+    return () => window.clearInterval(t);
+  }, [cur?.click, step]);
   const pad = 10;
   // Высокая цель перекрывалась бы подписью снизу — ставим подпись сбоку, с противоположной стороны
   const slide = !!cur?.slide;
@@ -229,7 +292,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
                       <span className="num rounded-md bg-brand px-2 py-0.5 text-xs font-bold text-white">{step + 1}/{STEPS.length}</span>
                       <h3 className={`font-semibold ${slide ? "text-3xl" : "text-xl"}`}>{cur!.title}</h3>
                     </div>
-                    <div className="mt-3">{slide ? cur!.slide!() : <p className="text-base leading-relaxed text-slate-200">{cur!.text}</p>}</div>
+                    <div className="mt-3">{slide ? createElement(cur!.slide!) : <p className="text-base leading-relaxed text-slate-200">{cur!.text}</p>}</div>
                   </>
                 )}
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-muted">

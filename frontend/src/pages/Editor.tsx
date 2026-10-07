@@ -179,7 +179,7 @@ export default function Editor() {
           <ChangeResults result={result} changes={changes} items={items} />
 
           <div className="space-y-4">
-            <Card title="AI-рекомендация" extra={ai && <span className="text-[10px] uppercase tracking-wider text-muted">{ai.source === "claude" ? `Claude · ${ai.model ?? ""}` : "правила · без LLM"}</span>}>
+            <div data-tour="editor-ai"><Card title="AI-рекомендация" extra={ai && <span className="text-[10px] uppercase tracking-wider text-muted">{ai.source === "claude" ? `Claude · ${ai.model ?? ""}` : "правила · без LLM"}</span>}>
               {ai ? (
                 <div className="space-y-2 text-sm">
                   <p className="text-slate-100">{ai.summary}</p>
@@ -188,11 +188,11 @@ export default function Editor() {
                   <p className="text-slate-200">{ai.recommendation}</p>
                 </div>
               ) : <p className="text-sm text-muted">{changes.length ? "Получите оценку рисков и следующего шага." : "Сначала внесите изменение."}</p>}
-              <button disabled={!changes.length || aiBusy} onClick={askAi}
+              <button disabled={!changes.length || aiBusy} onClick={askAi} data-tour-click="editor-ai"
                 className="mt-3 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-40">
                 {aiBusy ? "AI анализирует…" : "✦ AI-оценка изменения"}
               </button>
-            </Card>
+            </Card></div>
             {!STATIC && (
               <Card title="Сценарии">
                 <div className="flex gap-2">
@@ -219,16 +219,39 @@ export default function Editor() {
   );
 }
 
-/** Оценка правилами на клиенте (статическая сборка или сервер недоступен) — та же логика, что на сервере. */
-function localAssess(p: { before: { monthly: number; bottleneck: string }; after: { monthly: number; bottleneck: string }; conflicts: string[] }): AiAssess {
+const CHANGE_RISKS: [RegExp, string][] = [
+  [/робот/, "Робот: наладка программы и ограждение ячейки, простой участка на время монтажа"],
+  [/кондуктор/, "Кондуктор: изготовление оснастки и проверка геометрии на первых кузовах"],
+  [/рабоч\S* пост/, "Рабочий пост: нужен оператор на каждую смену"],
+  [/датчик/, "Датчик: калибровка и ложные срабатывания; данные нужно завести в двойник"],
+  [/буфер/, "Буфер: занимает площадь и проходы; сглаживает остановки, но не поднимает темп"],
+  [/компрессор/, "Компрессорная: перенос магистралей требует остановки участка"],
+  [/пост контроля|машинн/, "Пост контроля: ловит брак раньше, но не устраняет его причину"],
+  [/андон/, "Андон: без регламента реакции сигнал игнорируют"],
+];
+
+/** Оценка правилами на клиенте (статическая сборка или сервер недоступен) — та же логика, что в services/layout_ai.py. */
+function localAssess(p: { changes: string[]; before: { monthly: number; bottleneck: string }; after: { monthly: number; bottleneck: string }; conflicts: string[] }): AiAssess {
+  const { before: b, after: a } = p;
+  const dm = a.monthly - b.monthly;
+  const conflicts = [...new Set(p.conflicts)].sort();
+  const shift = b.bottleneck !== a.bottleneck;
   const risks: string[] = [];
-  if (p.conflicts.length) risks.push("Пересечения габаритов: " + [...new Set(p.conflicts)].join(", "));
-  if (p.before.bottleneck !== p.after.bottleneck) risks.push(`Узкое место смещается: ${p.before.bottleneck} → ${p.after.bottleneck} — проверить новый ограничивающий участок`);
-  risks.push("Влияние оборудования на темп — допущение модели; нужно подтвердить пилотом или расчётом технолога");
-  const dm = p.after.monthly - p.before.monthly;
-  const [next_step, recommendation] = p.conflicts.length ? ["fix_layout", "Сначала устранить пересечения — переместить объект на свободное место участка."] as const
-    : dm > 0 ? ["pilot", `Изменение даёт +${dm} авто/мес в сценарной модели — проверить на одной смене и сравнить факт.`] as const
-    : dm < 0 ? ["reject", `Изменение снижает устойчивый выпуск на ${-dm} авто/мес — не рекомендуется без компенсации.`] as const
-    : ["expert", "Выпуск в модели не меняется — оценить качественный эффект (безопасность, видимость, стабильность) с экспертом."] as const;
-  return { summary: `Устойчивый выпуск ${p.before.monthly} → ${p.after.monthly} авто/мес.`, risks: risks.slice(0, 4), next_step, recommendation, source: "rules" };
+  if (conflicts.length) risks.push("Пересечения габаритов: " + conflicts.join(", ").slice(0, 200));
+  if (shift) risks.push(`Узкое место смещается: ${b.bottleneck} → ${a.bottleneck} — теперь выпуск ограничивает «${a.bottleneck}»`);
+  const joined = p.changes.join(" ").toLowerCase();
+  for (const [rx, text] of CHANGE_RISKS) if (rx.test(joined)) risks.push(text);
+  if (p.changes.some((c) => c.toLowerCase().startsWith("убран"))) risks.push("Убранное оборудование выполняло работу — проверить, кто её возьмёт");
+  risks.push("Влияние оборудования на темп — допущение модели; подтвердить пилотом или расчётом технолога");
+  const head = p.changes.length ? p.changes.slice(0, 3).join("; ") + (p.changes.length > 3 ? ` и ещё ${p.changes.length - 3}` : "") : "Изменений нет";
+  const summary = `${head}. Устойчивый выпуск ${b.monthly} → ${a.monthly} авто/мес (${dm > 0 ? "+" : ""}${dm})` +
+    (shift ? `, узкое место смещается с «${b.bottleneck}» на «${a.bottleneck}».` : `, узкое место остаётся «${a.bottleneck}».`);
+  let next_step: AiAssess["next_step"], recommendation: string;
+  if (conflicts.length) { next_step = "fix_layout"; recommendation = `Сначала устранить пересечения (${conflicts.length}): переместить объект на свободное место участка и пересчитать.`; }
+  else if (dm > 0) {
+    next_step = "pilot";
+    recommendation = `Проверить на одной смене: замерить темп участка и сравнить с моделью (+${dm} авто/мес).` + (shift ? ` После изменения выпуск ограничивает «${a.bottleneck}» — следующая мера должна быть там.` : "");
+  } else if (dm < 0) { next_step = "reject"; recommendation = `Изменение снижает устойчивый выпуск на ${-dm} авто/мес — не внедрять без компенсации на участке «${a.bottleneck}».`; }
+  else { next_step = "expert"; recommendation = "Выпуск в модели не меняется — эффект качественный (видимость, стабильность, логистика): оценить с технологом."; }
+  return { summary, risks: risks.slice(0, 4), next_step, recommendation, source: "rules" };
 }

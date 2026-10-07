@@ -19,7 +19,7 @@ export function IdeaAiCard({ idea, animate = false }: { idea: Idea; animate?: bo
   ];
   const item = { hidden: { opacity: 0, x: -8 }, show: { opacity: 1, x: 0 } };
   return (
-    <div className="rounded-xl border border-brand/40 bg-gradient-to-br from-brand/10 via-panel to-panel p-5">
+    <div className="rounded-xl border border-brand/40 bg-gradient-to-br from-brand/10 via-panel to-panel p-5" data-tour="idea-ai">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-brand">
           AI-анализ идеи
