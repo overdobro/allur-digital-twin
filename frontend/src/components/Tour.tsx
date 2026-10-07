@@ -1,36 +1,130 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { STATIC } from "../api/client";
+import { GRANT_CHAIN } from "../lib/ideas";
 
 /**
- * Режим презентации: 8 шагов сценария Demo Day из ТЗ.
- * Каждый шаг — маршрут + зона подсветки (data-tour) + подпись.
+ * Режим презентации: проект рассказывает о себе сам.
+ * Сначала слайды «что это и как устроено», затем живые шаги по модулям — маршрут + зона подсветки (data-tour) + подпись.
+ * Шаги, которым нужен сервер (идеи, сообщения сотрудников), в статической сборке пропускаются.
  * Управление: → / Space / PageDown — дальше, ← / PageUp — назад, Esc — выход, F — полный экран.
  */
 
-interface Step { path: string; target: string | null; title: string; text: string }
+interface Step { path: string; target: string | null; title: string; text: string; chapter: string; slide?: () => ReactNode; server?: boolean }
 
-const STEPS: Step[] = [
-  { path: "/", target: "flow", title: "Цифровой двойник завода",
+const CHAPTERS = ["О системе", "Завод сейчас", "AI и решения", "Люди и идеи", "Итог"];
+
+const STEPS_ALL: Step[] = [
+  // ---------- О системе ----------
+  { chapter: "О системе", path: "/", target: null, title: "Цифровой двойник автомобильного завода", slide: SlideWhat,
+    text: "Виртуальная копия производственной линии АЛЛЮР, которая работает на данных смен." },
+  { chapter: "О системе", path: "/", target: null, title: "Как это работает", slide: SlideHow,
+    text: "Данные → расчёт → AI → решение человека." },
+  { chapter: "О системе", path: "/", target: null, title: "Три роли — одна система", slide: SlideRoles,
+    text: "Руководитель, сотрудник, обучающийся." },
+  // ---------- Завод сейчас ----------
+  { chapter: "Завод сейчас", path: "/", target: "flow", title: "Цифровой двойник завода",
     text: "Цех по фото и описанию завода: кузовной цех, окраска с ваннами КТЛ, подвесной конвейер сборки, тестовая линия. Кузов меняется по ходу — металл, грунт, цвет, колёса. Темп — по данным смены; очередь перед Сваркой — узкое место." },
-  { path: "/", target: "kpi", title: "Ключевые показатели",
+  { chapter: "Завод сейчас", path: "/", target: "kpi", title: "Ключевые показатели",
     text: "OEE, брак, простой критического оборудования и выпуск — против нормативов кейса. Статусы рассчитываются по порогам, не вручную." },
-  { path: "/?section=painting", target: "drawer", title: "Окраска — критичная зона",
+  { chapter: "Завод сейчас", path: "/?section=painting", target: "drawer", title: "Окраска — критичная зона",
     text: "Брак вырос с 3,5% до 5,2% при норме ≤ 2% — превышение в 2,6 раза. Бракованные кузова на конвейере уходят с линии." },
-  { path: "/?section=painting", target: "drawer-equipment", title: "Инцидент: Камера-02",
+  { chapter: "Завод сейчас", path: "/?section=painting", target: "drawer-equipment", title: "Инцидент: Камера-02",
     text: "Простой 40 минут — замена фильтра. Гипотеза для проверки: связь с ростом брака окраски." },
-  { path: "/ai", target: "ai-pipeline", title: "AI-анализ",
+  { chapter: "Завод сейчас", path: "/plan", target: "plan", title: "Производственный план",
+    text: "План по моделям — 4 800 авто/мес, по каждой модели план на смену, день и месяц. Прогноз при текущем темпе — 5 280: план по моделям выполним, а цель 5 500 — нет (−220). Факт по моделям расчётный — это честно помечено (A9)." },
+  // ---------- AI и решения ----------
+  { chapter: "AI и решения", path: "/ai", target: "ai-pipeline", title: "AI-анализ",
     text: "Мониторинг → анализ отклонений → прогноз риска → рекомендации. Каждый вывод опирается на рассчитанные факторы из данных." },
-  { path: "/ai", target: "bottleneck", title: "Bottleneck Detector",
+  { chapter: "AI и решения", path: "/ai", target: "bottleneck", title: "Bottleneck Detector",
     text: "Окраска — проблема уже случилась. Сварка — назревает: OEE 94,2% → 81,0%, узкое место смещается на Сварку." },
-  { path: "/executive?ai=1", target: "exec-priorities", title: "Решение для руководителя",
+  { chapter: "AI и решения", path: "/executive?ai=1", target: "exec-priorities", title: "Решение для руководителя",
     text: "Приоритеты на следующую смену и конкретные действия: проверить Камеру-02, откалибровать датчики ABB-01, проверить ABB-04 после ТО." },
-  { path: "/whatif", target: "two-futures", title: "Два будущих",
+  { chapter: "AI и решения", path: "/whatif", target: "two-futures", title: "Два будущих",
     text: "Двойник проигрывает решение заранее: без действий — 4 752 авто/мес, с рекомендациями AI — 5 002. Узкое место смещается со Сварки на Окраску; для 5 500 нужен темп ≈128/смену или дополнительные смены." },
-  { path: "/executive", target: "exec-effect", title: "Эффект для бизнеса",
+  { chapter: "AI и решения", path: "/editor?idea=3", target: "editor-results", title: "3D-редактор: проверка до внедрения", server: true,
+    text: "Добавили третьего робота на пост геометрии Сварки. Двойник сразу проверяет столкновения, проходы и свободное место и пересчитывает выпуск: 4 752 → 4 839 авто/мес, узкое место смещается Сварка → Окраска. Решение проверено до покупки оборудования." },
+  { chapter: "AI и решения", path: "/editor", target: "editor", title: "3D-редактор: проверка до внедрения", server: false,
+    text: "Руководитель переставляет, добавляет и убирает оборудование. Двойник проверяет столкновения, проходы и свободное место и пересчитывает выпуск и узкое место — до покупки оборудования." },
+  // ---------- Люди и идеи ----------
+  { chapter: "Люди и идеи", path: "/downtime", target: "staff-incidents", title: "Сотрудник → руководитель", server: true,
+    text: "Сотрудник отмечает начало и конец смены, записывает выполненные работы и сообщает о проблеме. Сообщение сразу попадает руководителю: слесарь слышит шум в цепи Конвейера-03 — это видно до того, как конвейер встанет." },
+  { chapter: "Люди и идеи", path: "/ideas?idea=3", target: "ideas", title: "Идеи обучающихся · ALLUR IDEA GRANT", server: true,
+    text: "Студенты колледжей и вузов предлагают улучшения. AI сразу оценивает идею по данным завода: реалистичность, эффект, сложность, риски. Балл считает код по прозрачной формуле; решение о гранте принимает эксперт, не AI." },
+  { chapter: "Люди и идеи", path: "/check3d?idea=3", target: "check3d", title: "Проверь идею в 3D", server: true,
+    text: "Идея студента применяется к цифровому двойнику: «второй робот на посту геометрии» даёт +87 авто/мес. Итог сохраняется в карточке идеи — комиссия видит не только текст, но и расчёт." },
+  // ---------- Итог ----------
+  { chapter: "Итог", path: "/executive", target: "exec-effect", title: "Эффект для бизнеса",
     text: "+118 кузовов в месяц без переделки при браке Окраски 2%. План 5 500 требует ≈125 авто/смену — даже 100% сменного плана дают 5 280." },
 ];
+const STEPS = STEPS_ALL.filter((s) => s.server === undefined || s.server === !STATIC);
 const FINAL = "Цифровой двойник не просто показывает проблему — он помогает принять решение до того, как проблема приведёт к потерям.";
+
+// ---------- слайды ----------
+
+function Tile({ icon, title, children }: { icon: string; title: string; children: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-line bg-panel2/80 p-4">
+      <div className="text-2xl">{icon}</div>
+      <div className="mt-2 font-semibold text-slate-100">{title}</div>
+      <div className="mt-1 text-sm leading-relaxed text-slate-300">{children}</div>
+    </div>
+  );
+}
+
+function SlideWhat() {
+  return (
+    <>
+      <p className="text-base leading-relaxed text-slate-200">
+        Кейс №2 АО «Группа компаний АЛЛЮР». Виртуальная копия линии <b>Склад → Сварка → Окраска → Сборка → Контроль → Склад</b>,
+        которая работает на данных смен и помогает руководителю не узнавать о проблеме постфактум.
+      </p>
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <Tile icon="👁" title="Видит">Состояние каждого участка и оборудования: темп, OEE, брак, простои — против нормативов.</Tile>
+        <Tile icon="🧠" title="Объясняет">AI находит причины отклонений, прогнозирует риск и предлагает действия на смену.</Tile>
+        <Tile icon="🧪" title="Проверяет заранее">«Что если» и 3D-редактор проигрывают решение до внедрения — сколько авто оно даст.</Tile>
+      </div>
+    </>
+  );
+}
+
+function SlideHow() {
+  const flow: [string, string, string][] = [
+    ["📊", "Данные", "Смены 01–02.10: выпуск, OEE, брак, простои, события оборудования по 6 участкам"],
+    ["🧮", "Расчёт", "KPI, OEE, статусы, узкое место — формулами в коде, по порогам кейса"],
+    ["✦", "AI", "Claude объясняет отклонения и даёт рекомендации; без ключа — те же выводы правилами"],
+    ["✅", "Решение", "Принимает человек: руководитель — по заводу, эксперт — по гранту"],
+  ];
+  return (
+    <>
+      <div className="grid gap-2 md:grid-cols-4">
+        {flow.map(([i, t, d], k) => (
+          <div key={t} className="relative rounded-xl border border-line bg-panel2/80 p-4">
+            <div className="text-2xl">{i}</div>
+            <div className="mt-2 font-semibold">{t}</div>
+            <div className="mt-1 text-sm leading-relaxed text-slate-300">{d}</div>
+            {k < flow.length - 1 && <span className="absolute -right-3 top-1/2 z-10 hidden -translate-y-1/2 text-xl text-brand md:block">→</span>}
+          </div>
+        ))}
+      </div>
+      <p className="mt-4 text-sm text-muted">
+        Честность данных: всё, что посчитано по допущению, помечено «расчётный»; допущения A1–A9 открыты в разделе «Допущения и методика».
+        Цифры AI не придумывает — он получает уже рассчитанные факты.
+      </p>
+    </>
+  );
+}
+
+function SlideRoles() {
+  return (
+    <div className="grid gap-3 md:grid-cols-3">
+      <Tile icon="👔" title="Руководитель">Обзор завода в 3D, линии, план, качество, простои, AI-риски, «Что если», 3D-редактор, отбор идей на грант.</Tile>
+      <Tile icon="🦺" title="Сотрудник">Моя смена (приход/уход), выполненные работы, сообщения о проблемах — сразу в ленту руководителя, свои идеи.</Tile>
+      <Tile icon="🎓" title="Обучающийся">Предлагает идею → получает AI-оценку → проверяет её на 3D-модели → рейтинг и грант ALLUR IDEA GRANT.</Tile>
+    </div>
+  );
+}
 
 interface TourCtx { active: boolean; start: () => void }
 const Ctx = createContext<TourCtx>({ active: false, start: () => {} });
@@ -92,8 +186,10 @@ export function TourProvider({ children }: { children: ReactNode }) {
   const rect = useTargetRect(cur?.target ?? null, [step]);
   const pad = 10;
   // Высокая цель перекрывалась бы подписью снизу — ставим подпись сбоку, с противоположной стороны
-  const side: "bottom" | "left" | "right" =
-    !rect || final || rect.height < window.innerHeight * 0.55 ? "bottom"
+  const slide = !!cur?.slide;
+  // Невысокая цель внизу экрана (страницу дальше не прокрутить) — подпись сверху, чтобы её не закрыть
+  const side: "bottom" | "top" | "left" | "right" | "center" = slide || final ? "center" :
+    !rect || rect.height < window.innerHeight * 0.55 ? (rect && rect.bottom > window.innerHeight - 280 ? "top" : "bottom")
       : rect.left + rect.width / 2 > window.innerWidth / 2 ? "left" : "right";
 
   return (
@@ -114,18 +210,26 @@ export function TourProvider({ children }: { children: ReactNode }) {
             <div className={`pointer-events-auto absolute px-4 ${
               side === "left" ? "inset-y-0 left-4 flex w-[440px] items-center" :
               side === "right" ? "inset-y-0 right-4 flex w-[440px] items-center" :
+              side === "center" ? "inset-0 flex items-center justify-center" :
+              side === "top" ? "inset-x-0 top-6 flex justify-center" :
               "inset-x-0 bottom-6 flex justify-center"}`}>
               <motion.div key={step} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
-                className={`w-full rounded-2xl border border-line bg-panel/95 p-5 shadow-2xl backdrop-blur ${final ? "max-w-4xl" : "max-w-3xl"}`}>
+                className={`w-full rounded-2xl border border-line bg-panel/95 p-5 shadow-2xl backdrop-blur ${final || slide ? "max-w-5xl p-7" : "max-w-3xl"}`}>
                 {final ? (
-                  <p className="text-center text-2xl font-semibold leading-snug">«{FINAL}»</p>
+                  <>
+                    <div className="mb-5 flex flex-wrap justify-center gap-1.5 text-xs">
+                      {GRANT_CHAIN.map((g, i) => <span key={g} className="rounded-full bg-panel2 px-3 py-1 text-slate-300">{g}{i < GRANT_CHAIN.length - 1 && " →"}</span>)}
+                    </div>
+                    <p className="text-center text-2xl font-semibold leading-snug">«{FINAL}»</p>
+                  </>
                 ) : (
                   <>
+                    <Chapters current={cur!.chapter} />
                     <div className="flex items-center gap-3">
                       <span className="num rounded-md bg-brand px-2 py-0.5 text-xs font-bold text-white">{step + 1}/{STEPS.length}</span>
-                      <h3 className="text-xl font-semibold">{cur!.title}</h3>
+                      <h3 className={`font-semibold ${slide ? "text-3xl" : "text-xl"}`}>{cur!.title}</h3>
                     </div>
-                    <p className="mt-2 text-base leading-relaxed text-slate-200">{cur!.text}</p>
+                    <div className="mt-3">{slide ? cur!.slide!() : <p className="text-base leading-relaxed text-slate-200">{cur!.text}</p>}</div>
                   </>
                 )}
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
@@ -143,6 +247,15 @@ export function TourProvider({ children }: { children: ReactNode }) {
         )}
       </AnimatePresence>
     </Ctx.Provider>
+  );
+}
+
+function Chapters({ current }: { current: string }) {
+  const k = CHAPTERS.indexOf(current);
+  return (
+    <div className="mb-3 flex flex-wrap gap-1 text-[11px] uppercase tracking-wider">
+      {CHAPTERS.map((c, i) => <span key={c} className={i === k ? "text-brand" : i < k ? "text-slate-400" : "text-slate-600"}>{c}{i < CHAPTERS.length - 1 && <span className="mx-1 text-slate-600">·</span>}</span>)}
+    </div>
   );
 }
 

@@ -59,7 +59,7 @@ export default function Downtime() {
           <div className="text-sm text-slate-200">{longest.reason}, {fmtDate(longest.date)}<div className="text-muted">{fmt(longest.limit_usage_pct)}% от суточной нормы {limit} мин</div></div>
         </div>
       )}
-      <div className="mb-4"><StaffIncidents /></div>
+      <div className="mb-4" data-tour="staff-incidents"><StaffIncidents /></div>
       <div className="grid gap-4 xl:grid-cols-2">
         <Card title="Журнал">
           <table className="num w-full text-sm">

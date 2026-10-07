@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { useApi } from "../../api/client";
@@ -58,7 +59,8 @@ export default function ManagerIdeas() {
   const r = useApi(ideasApi.rating, []);
   const [list, setList] = useState<Idea[] | null>(null);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
-  const [selected, setSelected] = useState<number | null>(null);
+  const [params] = useSearchParams();
+  const [selected, setSelected] = useState<number | null>(params.get("idea") ? Number(params.get("idea")) : null);
   const all = list ?? r.data;
   const shown = useMemo(() => (all ?? []).filter((i) => filter === "all" || i.status === filter), [all, filter]);
   if (!all) return <Loading error={r.error} />;
@@ -90,7 +92,7 @@ export default function ManagerIdeas() {
           </div>
         </div>
         {cur && (
-          <motion.div key={cur.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+          <motion.div key={cur.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4" data-tour="ideas">
             <Card title={cur.title} extra={<span className="text-xs font-semibold" style={{ color: STATUS_IDEA[cur.status].color }}>{STATUS_IDEA[cur.status].label}</span>}>
               <div className="mb-2 text-xs text-muted">
                 <span className="font-mono">{cur.author?.login}</span> · {cur.author?.role === "student" ? `обучающийся, ${cur.author.course} курс` : cur.author?.title}

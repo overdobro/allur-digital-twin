@@ -117,7 +117,7 @@ export default function Editor() {
         </div>
       )}
       <div className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="relative h-[68vh] min-h-[460px] overflow-hidden rounded-xl border border-line" data-testid="editor-3d"
+        <div className="relative h-[68vh] min-h-[460px] overflow-hidden rounded-xl border border-line" data-testid="editor-3d" data-tour="editor"
           style={{ cursor: placing ? "crosshair" : undefined }}>
           <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-muted">Загрузка 3D…</div>}>
             <Factory3D nodes={ov.data.nodes} onSelect={() => {}} focusId={focusSection} motion
@@ -175,7 +175,7 @@ export default function Editor() {
       </div>
 
       {result && (
-        <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]" data-testid="editor-results">
+        <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]" data-testid="editor-results" data-tour="editor-results">
           <ChangeResults result={result} changes={changes} items={items} />
 
           <div className="space-y-4">

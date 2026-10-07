@@ -57,11 +57,14 @@ with sync_playwright() as p:
     pg.get_by_role("button", name="▶ Воспроизвести смены").click()
     pg.get_by_text("шаг 18 / 18").wait_for(timeout=40000)
     pg.get_by_role("button", name="Живой вид").click()
-    # Режим презентации: 9 шагов + итог
+    # Режим презентации: слайды о системе + шаги по модулям + итог — листаем до конца
     pg.get_by_role("button", name="▶ Презентация").click()
-    for _ in range(10):  # 9 шагов + итог
+    for n in range(40):
         pg.wait_for_timeout(1200)
+        if pg.get_by_text("← → или кликер").count() == 0:
+            break
         pg.keyboard.press("ArrowRight")
+    print("presentation steps:", n)
     pg.wait_for_timeout(600)
     assert pg.get_by_text("← → или кликер").count() == 0, "презентация не завершилась"
     pg.screenshot(path=sys.argv[1] if len(sys.argv) > 1 else "e2e.png", full_page=True)

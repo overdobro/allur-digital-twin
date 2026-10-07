@@ -59,7 +59,7 @@ export default function Check3D() {
           <span key={s} className={`rounded-full px-2.5 py-1 ${k === 2 ? "bg-brand text-white" : k < 2 ? "bg-ok/20 text-ok" : "bg-panel2 text-muted"}`}>{k + 1}. {s}</span>
         ))}
       </div>
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]" data-tour="check3d">
         <div className="relative h-[56vh] min-h-[400px] overflow-hidden rounded-xl border border-line" data-testid="check3d-3d">
           {hasWebGL() ? (
             <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-muted">Загрузка 3D…</div>}>

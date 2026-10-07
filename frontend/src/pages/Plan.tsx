@@ -34,7 +34,7 @@ export default function Plan() {
           </div>
         ))}
       </div>
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]" data-tour="plan">
         <Card title={<span className="flex items-center gap-2">План по моделям <CalcTag title="Факт по моделям — расчётный (A9)" /></span>}
           extra={
             <div className="inline-flex rounded-lg border border-line bg-bg p-0.5">

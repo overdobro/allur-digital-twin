@@ -106,6 +106,7 @@ def get_engine():
     with Session(engine) as s:
         seed_users(s)
         seed_ideas(s)
+        seed_incidents(s)
     return engine
 
 
@@ -194,3 +195,20 @@ def seed_ideas(s: Session) -> None:
 
 def init_db() -> None:
     get_engine()
+
+
+def seed_incidents(s: Session) -> None:
+    """Пара демо-сообщений с участков (по событиям кейса), чтобы лента руководителя не была пустой на показе."""
+    if s.exec(select(Incident).limit(1)).first():
+        return
+    from datetime import timedelta
+
+    users = {u.login: u for u in s.exec(select(User))}
+    now = utcnow()
+    s.add(Incident(author_id=users["emp_05"].id, section_id="assembly", equipment="Конвейер-03", severity="critical",
+                   text="Посторонний шум в приводе цепи, рывки при старте. Нужен осмотр до начала смены.",
+                   created_at=now - timedelta(hours=3)))
+    s.add(Incident(author_id=users["emp_03"].id, section_id="painting", equipment="Камера-02", severity="warning",
+                   text="После замены фильтра вижу пыль на кузовах на выходе камеры, просьба проверить перепад давления.",
+                   created_at=now - timedelta(hours=5)))
+    s.commit()
