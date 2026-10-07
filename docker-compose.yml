@@ -4,6 +4,8 @@ services:
     env_file:
       - path: .env
         required: false
+    volumes:
+      - db-data:/app/data  # SQLite: идеи, инциденты, посещаемость переживают перезапуск
     restart: unless-stopped
 
   frontend:
@@ -14,3 +16,6 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  db-data:

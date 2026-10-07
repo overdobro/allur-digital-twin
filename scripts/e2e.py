@@ -18,11 +18,22 @@ with sync_playwright() as p:
     pg.on("console", lambda m: m.type == "error" and errors.append(m.text))
     pg.on("pageerror", lambda e: errors.append(str(e)))
     pg.goto(BASE + "/")
+    # Экран выбора роли (в статической сборке его нет — сразу вид руководителя)
+    pg.get_by_text("КАК ВЫ ХОТИТЕ ВОЙТИ?").or_(pg.get_by_role("link", name="Обзор завода")).first.wait_for(timeout=30000)
+    if pg.get_by_text("КАК ВЫ ХОТИТЕ ВОЙТИ?").count():
+        pg.get_by_role("button", name="👔 Руководитель").click()
+        pg.get_by_label("Пароль").fill(os.getenv("MANAGER_PASSWORD", "allur2026"))
+        pg.get_by_role("button", name="Войти").click()
     pg.get_by_text("Окраска", exact=True).first.wait_for()
     # Клик по участку на конвейере → боковая панель с инцидентом Камеры-02
     pg.wait_for_selector("[data-testid=factory-3d] canvas", timeout=30000)  # 3D загрузился
     pg.hover("[data-testid=factory-3d]")  # курсор над сценой — камера перестаёт покачиваться
-    pg.get_by_role("button", name="Окраска: Критично").click()
+    pg.wait_for_timeout(3000)  # камера доводит начальный ракурс (на программном рендере — медленно)
+    label = pg.get_by_role("button", name="Окраска: Критично")
+    try:
+        label.click(timeout=10000)
+    except Exception:
+        label.click(force=True)  # подпись ещё плавно смещается — клик без проверки стабильности
     pg.get_by_role("dialog").get_by_text("Замена фильтра").wait_for()
     pg.keyboard.press("Escape")
     pg.get_by_role("dialog").wait_for(state="detached", timeout=15000)

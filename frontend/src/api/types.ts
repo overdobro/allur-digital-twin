@@ -102,3 +102,9 @@ export interface ReplayStep {
   index: number; date: string; kind: "day" | "production" | "downtime" | "quality"; section_id: string | null;
   severity: Status | "info"; text: string; nodes: Record<string, Status>;
 }
+
+export type Role = "manager" | "employee" | "student";
+
+export interface User {
+  id: number; login: string; role: Role; name: string; title: string; section_id: string | null; course: number | null;
+}

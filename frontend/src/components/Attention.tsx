@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { Forecast, RiskResponse, Status } from "../api/types";
 import { fmtDateShort, fmtInt } from "../lib/format";
+import { useOpenIncidents } from "./StaffIncidents";
 import { Card, Dot } from "./ui";
 
 export const STAGE_LABEL = { realized: "Уже случилось", emerging: "Назревает" } as const;
@@ -11,6 +12,7 @@ export const levelStatus = (code: "low" | "medium" | "high", stage: "realized" |
 
 export function AttentionPanel({ risk, forecast }: { risk: RiskResponse; forecast: Forecast | null }) {
   const b = risk.bottleneck;
+  const openIncidents = useOpenIncidents();
   return (
     <Card
       title={<span className="flex items-center gap-2">Требует внимания <span className="rounded bg-brand/15 px-1.5 py-px text-[10px] font-semibold uppercase text-brand">AI Risk</span></span>}
@@ -30,6 +32,14 @@ export function AttentionPanel({ risk, forecast }: { risk: RiskResponse; forecas
             </Link>
           </li>
         ))}
+        {openIncidents > 0 && (
+          <li className="min-w-0">
+            <Link to="/downtime" className="block rounded-lg border border-crit/50 bg-crit/10 p-3 transition hover:border-crit">
+              <div className="flex items-center gap-2 text-sm font-semibold"><Dot status="critical" pulse />Сообщения с участков: {openIncidents}</div>
+              <p className="mt-1.5 text-xs text-slate-300">Новые сообщения сотрудников о проблемах — открыть ленту.</p>
+            </Link>
+          </li>
+        )}
         {forecast && forecast.gap < 0 && (
           <li className="rounded-lg border border-line bg-panel2 p-3">
             <div className="flex items-center gap-2 text-sm font-semibold"><Dot status="critical" />План месяца</div>

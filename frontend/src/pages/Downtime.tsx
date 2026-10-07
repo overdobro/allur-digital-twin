@@ -1,6 +1,7 @@
 import type { EChartsOption } from "echarts";
 import { api, useApi } from "../api/client";
 import { baseOption, Chart, MUTED_MARK, NORM_COLOR, SERIES_BLUE } from "../components/Chart";
+import { StaffIncidents } from "../components/StaffIncidents";
 import { Card, Loading, PageTitle, StatusBadge } from "../components/ui";
 import { useApp } from "../lib/context";
 import { fmt, fmtDate, fmtDateShort } from "../lib/format";
@@ -58,6 +59,7 @@ export default function Downtime() {
           <div className="text-sm text-slate-200">{longest.reason}, {fmtDate(longest.date)}<div className="text-muted">{fmt(longest.limit_usage_pct)}% от суточной нормы {limit} мин</div></div>
         </div>
       )}
+      <div className="mb-4"><StaffIncidents /></div>
       <div className="grid gap-4 xl:grid-cols-2">
         <Card title="Журнал">
           <table className="num w-full text-sm">

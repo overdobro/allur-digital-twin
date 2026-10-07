@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { effectCalc, type EffectInputs } from "../lib/effect";
 import type {
-  Advice, Downtime, Effect, Forecast, LineMetrics, Meta, Overview, QualityRow, ReplayStep, RiskResponse, SectionDetail,
+  Advice, Downtime, Effect, Forecast, LineMetrics, Meta, Overview, QualityRow, ReplayStep, RiskResponse, SectionDetail, User,
 } from "./types";
 
 /** Статический режим (GitHub Pages): ответы API заранее выгружены в JSON, сервера нет. */
@@ -48,6 +48,36 @@ export const api = {
     return effectCalc(await inputsCache, p.working_days ?? 22, p.defect_target_pct ?? 2, p.downtime_cut_pct ?? 50, p.margin_per_car ?? null);
   },
   replay: () => get<{ steps: ReplayStep[]; total: number }>("/replay"),
+};
+
+// ---------- запись (роли, идеи, инциденты) — только с сервером ----------
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string) { super(message); }
+}
+
+/** JSON-запрос к API с cookie сессии; текст ошибки — из поля detail FastAPI. */
+export async function send<T>(method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE", path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${import.meta.env.VITE_API_URL ?? "/api"}${path}`, {
+    method,
+    credentials: "same-origin",
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = res.status === 204 ? null : await res.json().catch(() => null);
+  if (!res.ok) {
+    const d = (data as { detail?: unknown } | null)?.detail;
+    throw new ApiError(res.status, typeof d === "string" ? d : Array.isArray(d) ? "Проверьте заполнение полей" : `Ошибка ${res.status}`);
+  }
+  return data as T;
+}
+
+export const auth = {
+  me: () => send<User | null>("GET", "/auth/me"),
+  accounts: (role: "employee" | "student") => send<User[]>("GET", `/auth/accounts?role=${role}`),
+  login: (login: string, password: string) => send<User>("POST", "/auth/login", { login, password }),
+  demo: (login: string) => send<User>("POST", "/auth/demo", { login }),
+  logout: () => send<{ ok: boolean }>("POST", "/auth/logout"),
 };
 
 /** Загрузка данных с повторным запросом при смене зависимостей. */
