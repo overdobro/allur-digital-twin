@@ -7,7 +7,7 @@ import os
 from datetime import date, datetime, timezone
 from functools import lru_cache
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import UniqueConstraint, inspect, text
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
@@ -42,6 +42,7 @@ class Idea(SQLModel, table=True):
     expert_score: int | None = None  # 1–10, ставит руководитель/эксперт
     expert_comment: str | None = None
     reviewed_at: datetime | None = None
+    check3d_json: str | None = None  # итог проверки на 3D-модели (было → стало), шаг «Проверь в 3D»
 
 
 class Incident(SQLModel, table=True):
@@ -101,10 +102,24 @@ def get_engine():
     (на Vercel функции не всегда проходят lifespan, в тестах TestClient его не вызывает)."""
     engine = _make_engine(database_url())
     SQLModel.metadata.create_all(engine)
+    _add_missing_columns(engine)
     with Session(engine) as s:
         seed_users(s)
         seed_ideas(s)
     return engine
+
+
+def _add_missing_columns(engine) -> None:
+    """create_all не добавляет новые столбцы в существующие таблицы — для MVP без миграций добавляем nullable-столбцы сами."""
+    insp = inspect(engine)
+    for table in SQLModel.metadata.sorted_tables:
+        if not insp.has_table(table.name):
+            continue
+        have = {c["name"] for c in insp.get_columns(table.name)}
+        for col in table.columns:
+            if col.name not in have and col.nullable:
+                with engine.begin() as conn:
+                    conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {col.type.compile(engine.dialect)}'))
 
 
 def _make_engine(url: str):

@@ -46,7 +46,8 @@ def final_score(i: Idea, ai: dict | None) -> int | None:
 
 def idea_out(i: Idea, author: User | None) -> dict:
     ai = json.loads(i.ai_json) if i.ai_json else None
-    return {**i.model_dump(exclude={"ai_json"}), "ai": ai, "final_score": final_score(i, ai),
+    return {**i.model_dump(exclude={"ai_json", "check3d_json"}), "ai": ai,
+            "check3d": json.loads(i.check3d_json) if i.check3d_json else None, "final_score": final_score(i, ai),
             "author": public_user(author) if author else None}
 
 
@@ -102,6 +103,32 @@ def reevaluate(idea_id: int, u: User = Depends(require("manager", "student", "em
         raise HTTPException(403, "Переоценить может автор или руководитель")
     ev = evaluate(i.title, i.text, i.section_id, get_repository())
     i.ai_json, i.ai_source = json.dumps(ev, ensure_ascii=False), ev["source"]
+    s.add(i)
+    s.commit()
+    s.refresh(i)
+    return idea_out(i, s.get(User, i.author_id))
+
+
+class Check3dIn(BaseModel):
+    """Итог проверки идеи на 3D-модели — считается на клиенте той же моделью, что в редакторе."""
+    changes: list[str] = Field(max_length=20)
+    before: int
+    after: int
+    bottleneck_before: str = Field(max_length=60)
+    bottleneck_after: str = Field(max_length=60)
+    conflicts: list[str] = Field(default_factory=list, max_length=50)
+    consequences: list[str] = Field(default_factory=list, max_length=20)
+
+
+@router.post("/ideas/{idea_id}/check3d")
+def save_check3d(idea_id: int, body: Check3dIn, u: User = Depends(require("manager", "student", "employee")),
+                 s: Session = Depends(get_session)):
+    i = s.get(Idea, idea_id)
+    if not i:
+        raise HTTPException(404, "Идея не найдена")
+    if u.role != "manager" and i.author_id != u.id:
+        raise HTTPException(403, "Сохранить проверку может автор или руководитель")
+    i.check3d_json = json.dumps({**body.model_dump(), "checked_at": datetime.now(timezone.utc).isoformat()}, ensure_ascii=False)
     s.add(i)
     s.commit()
     s.refresh(i)

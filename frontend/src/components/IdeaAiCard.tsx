@@ -44,9 +44,14 @@ export function IdeaAiCard({ idea, animate = false }: { idea: Idea; animate?: bo
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <Link to={`/check3d?idea=${idea.id}`}
           className={`rounded-lg px-4 py-2 text-sm font-semibold ${ai.scenario ? "bg-brand text-white hover:brightness-110" : "border border-line text-muted hover:text-white"}`}>
-          🧩 Проверить идею на 3D-модели
+          🧩 {idea.check3d ? "Открыть проверку на 3D" : "Проверить идею на 3D-модели"}
         </Link>
-        {ai.scenario && (
+        {idea.check3d && (
+          <span className="rounded-md bg-ok/15 px-2 py-1 text-xs text-ok" data-testid="check3d-badge">
+            ✓ Проверено в 3D: {idea.check3d.before} → {idea.check3d.after} авто/мес{idea.check3d.conflicts.length ? ` · конфликтов ${idea.check3d.conflicts.length}` : ""}
+          </span>
+        )}
+        {ai.scenario && !idea.check3d && (
           <span className="text-xs text-muted">
             Предложено: {{ add: "добавить", move: "переместить", remove: "убрать" }[ai.scenario.action]} «{OBJECT_LABEL[ai.scenario.object] ?? ai.scenario.object}» · {SECTION_NAME[ai.scenario.section_id]}
           </span>

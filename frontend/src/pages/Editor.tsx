@@ -1,8 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { send, STATIC } from "../api/client";
-import { assess, EFFECTS, NO_MODEL_EFFECT } from "../components/three/editorChecks";
+import { assess, EFFECTS } from "../components/three/editorChecks";
+import { ChangeResults, diffLayouts, itemName, KIND_LABEL } from "../components/ChangeResults";
 import { baselineFromLines } from "../lib/whatif";
-import { fmtInt, STATUS_HEX } from "../lib/format";
 import { useSearchParams } from "react-router-dom";
 import { api, useApi } from "../api/client";
 import { Card, Loading, PageTitle } from "../components/ui";
@@ -15,29 +15,10 @@ interface AiAssess { summary: string; risks: string[]; next_step: "pilot" | "fix
 interface SavedScenario { id: number; name: string; items: Item[]; created_at: string; author: { login: string } | null }
 const NEXT: Record<AiAssess["next_step"], string> = { pilot: "Пилот на одной смене", fix_layout: "Исправить расстановку", expert: "Экспертная оценка", reject: "Не внедрять" };
 import { hasWebGL } from "../lib/webgl";
+import { ideasApi } from "../lib/ideas";
+import { draftFromIdea } from "../components/three/ideaScenario";
 
 const Factory3D = lazy(() => import("../components/three/Factory3D"));
-
-/** Изменение относительно исходной расстановки — основа для «Было → Изменение → Стало». */
-export interface Change { kind: "add" | "move" | "remove" | "rotate"; item: Item; from?: Item }
-
-export function diffLayouts(base: Item[], draft: Item[]): Change[] {
-  const out: Change[] = [];
-  const byId = new Map(draft.map((i) => [i.id, i]));
-  for (const b of base) {
-    const d = byId.get(b.id);
-    if (!d) out.push({ kind: "remove", item: b });
-    else if (Math.hypot(d.x - b.x, d.z - b.z) > 0.01) out.push({ kind: "move", item: d, from: b });
-    else if (Math.abs(d.rot - b.rot) > 0.01) out.push({ kind: "rotate", item: d, from: b });
-  }
-  const baseIds = new Set(base.map((b) => b.id));
-  for (const d of draft) if (!baseIds.has(d.id)) out.push({ kind: "add", item: d });
-  return out;
-}
-
-const KIND_LABEL: Record<Change["kind"], string> = { add: "Добавлен", move: "Перемещён", remove: "Убран", rotate: "Повёрнут" };
-
-export const itemName = (i: Item) => i.label ?? CATALOG[i.type].label;
 
 let seq = 1;
 
@@ -50,7 +31,19 @@ export default function Editor() {
   const [items, setItems] = useState<Item[]>(base);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [placing, setPlacing] = useState<ObjType | null>(null);
-  const focusSection = params.get("section");
+  // Идея → черновик расстановки (кнопка «Открыть в редакторе» на проверке идеи)
+  const ideaId = params.get("idea");
+  const [fromIdea, setFromIdea] = useState<{ id: number; title: string; message: string; section: string | null } | null>(null);
+  useEffect(() => {
+    if (!ideaId || STATIC) return;
+    ideasApi.get(Number(ideaId)).then((i) => {
+      const d = draftFromIdea(base, i.ai?.scenario ?? null);
+      setItems(d.items);
+      setSelectedId(d.focusId);
+      setFromIdea({ id: i.id, title: i.title, message: d.message, section: i.ai?.scenario?.section_id ?? null });
+    }).catch(() => null);
+  }, [ideaId, base]);
+  const focusSection = params.get("section") ?? fromIdea?.section ?? null;
 
   // Тестовый хук: текущие объекты редактора (для автотестов перетаскивания)
   useEffect(() => { (window as unknown as { __twinEditor?: unknown }).__twinEditor = { items }; }, [items]);
@@ -117,6 +110,12 @@ export default function Editor() {
   return (
     <>
       <PageTitle title="Редактор цифрового двойника" subtitle="Моделирование изменений до внедрения: переместите, добавьте или уберите оборудование и посмотрите последствия" />
+      {fromIdea && (
+        <div className="mb-3 rounded-lg border border-brand/40 bg-brand/10 px-4 py-2 text-sm">
+          <span className="text-muted">Из идеи: </span><b>«{fromIdea.title}»</b> · {fromIdea.message}
+          <span className="text-muted"> — уточните расстановку и сравните последствия.</span>
+        </div>
+      )}
       <div className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="relative h-[68vh] min-h-[460px] overflow-hidden rounded-xl border border-line" data-testid="editor-3d"
           style={{ cursor: placing ? "crosshair" : undefined }}>
@@ -177,53 +176,7 @@ export default function Editor() {
 
       {result && (
         <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]" data-testid="editor-results">
-          <Card title="Проверка изменений: было → изменение → стало" extra={<span className="text-xs text-muted">сценарная модель · допущения ниже</span>}>
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="rounded-lg bg-panel2 p-3">
-                <div className="text-[11px] uppercase tracking-wider text-muted">Было</div>
-                <div className="num mt-1 text-2xl font-semibold">{fmtInt(result.before.monthly)}</div>
-                <div className="text-xs text-muted">авто/мес · узкое место: <b className="text-warn">{result.before.bottleneck.name}</b></div>
-              </div>
-              <div className="rounded-lg bg-panel2 p-3">
-                <div className="text-[11px] uppercase tracking-wider text-muted">Изменение</div>
-                {changes.length ? <ul className="mt-1 space-y-0.5 text-xs text-slate-200">{changes.slice(0, 5).map((c) => <li key={c.kind + c.item.id}>{KIND_LABEL[c.kind]}: {itemName(c.item)}</li>)}{changes.length > 5 && <li className="text-muted">…ещё {changes.length - 5}</li>}</ul>
-                  : <div className="mt-1 text-xs text-muted">нет</div>}
-              </div>
-              <div className="rounded-lg p-3" style={{ background: (result.conflicts.length ? STATUS_HEX.critical : result.after.monthly > result.before.monthly ? STATUS_HEX.ok : result.after.monthly < result.before.monthly ? STATUS_HEX.warning : "#18222f") + "22" }}>
-                <div className="text-[11px] uppercase tracking-wider text-muted">Стало</div>
-                <div className="num mt-1 text-2xl font-semibold">{fmtInt(result.after.monthly)}
-                  <span className={`ml-2 text-sm ${result.after.monthly - result.before.monthly >= 0 ? "text-ok" : "text-crit"}`}>{result.after.monthly - result.before.monthly > 0 ? "+" : ""}{result.after.monthly - result.before.monthly}</span></div>
-                <div className="text-xs text-muted">узкое место: <b className="text-warn">{result.after.bottleneck.name}</b></div>
-              </div>
-            </div>
-            {result.conflicts.length > 0 && (
-              <div className="mt-3 rounded-lg border border-crit/50 bg-crit/10 p-3 text-sm">
-                <div className="font-semibold text-crit">Конфликты ({new Set(result.conflicts.map((c) => c.id)).size} объект.)</div>
-                <ul className="mt-1 space-y-0.5 text-xs text-slate-200">
-                  {[...new Map(result.conflicts.map((c) => [c.id + c.with, c])).values()].map((c) => <li key={c.id + c.with}>{itemName(items.find((i) => i.id === c.id)!)} ↔ {c.with}</li>)}
-                </ul>
-              </div>
-            )}
-            <h3 className="mb-1 mt-4 text-xs font-semibold uppercase tracking-wider text-muted">Последствия</h3>
-            {result.consequences.length ? <ul className="list-inside list-disc space-y-1 text-sm text-slate-200">{result.consequences.map((c) => <li key={c}>{c}</li>)}</ul>
-              : <p className="text-sm text-muted">Изменений нет.</p>}
-            {Object.keys(result.free).length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                {Object.entries(result.free).map(([z, f]) => (
-                  <span key={z} className="rounded-md bg-panel2 px-2 py-1 text-slate-300">свободно · {SECTION_NAME[z]}: <b className="num">{f.before}% → {f.after}%</b></span>
-                ))}
-              </div>
-            )}
-            <details className="mt-4 text-xs text-muted">
-              <summary className="cursor-pointer hover:text-white">Допущения модели редактора</summary>
-              <ul className="mt-2 list-inside list-disc space-y-0.5">
-                {Object.values(EFFECTS).flatMap((z) => Object.values(z ?? {})).map((e) => <li key={e!.note}>{e!.note}</li>)}
-                {Object.values(NO_MODEL_EFFECT).map((n) => <li key={n}>{n}</li>)}
-                <li>Выпуск — устойчивый режим (после исчерпания буферов) по модели «Что если»; база — смена 02.10.</li>
-                <li>Геометрия — по габаритам объектов в плане; несущие конструкции и коридор движения кузова не двигаются.</li>
-              </ul>
-            </details>
-          </Card>
+          <ChangeResults result={result} changes={changes} items={items} />
 
           <div className="space-y-4">
             <Card title="AI-рекомендация" extra={ai && <span className="text-[10px] uppercase tracking-wider text-muted">{ai.source === "claude" ? `Claude · ${ai.model ?? ""}` : "правила · без LLM"}</span>}>

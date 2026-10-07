@@ -77,3 +77,13 @@ describe("было → стало", () => {
     expect(a.consequences.some((c) => c.startsWith("Буфер в устойчивом режиме выпуск не меняет"))).toBe(true);
   });
 });
+
+describe("перемещение", () => {
+  it("компрессорная внутри Окраски: выпуск не меняется, и это сказано прямо", () => {
+    const base = baseLayout();
+    const draft = base.map((i) => (i.id === "compressors" ? { ...i, ...place("painting", 0.3, 0, -3.3) } : i));
+    const a = assess(base, draft, baseline, 5500);
+    expect(a.after.monthly).toBe(a.before.monthly);
+    expect(a.consequences.some((c) => c.startsWith("Компрессорная: перемещение в пределах участка «Окраска»"))).toBe(true);
+  });
+});

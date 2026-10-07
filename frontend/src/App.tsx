@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes } from "react-router-dom";
 import { STATIC } from "./api/client";
 import type { Role } from "./api/types";
-import { PageTitle } from "./components/ui";
 import { useAuth } from "./lib/auth";
 import RoleSelect from "./pages/RoleSelect";
 import EmployeeIncidents from "./pages/people/EmployeeIncidents";
@@ -11,6 +10,7 @@ import IdeasPage from "./pages/people/IdeasPage";
 import WorkLog from "./pages/people/WorkLog";
 import ManagerIdeas from "./pages/people/ManagerIdeas";
 import Rating from "./pages/people/Rating";
+import Check3D from "./pages/people/Check3D";
 import StudentProfile from "./pages/people/StudentProfile";
 import { DateSwitch } from "./components/DateSwitch";
 import { MotionToggle } from "./components/MotionToggle";
@@ -136,6 +136,7 @@ export default function App() {
           <Route path="/incidents" element={<EmployeeIncidents />} />
           <Route path="/ideas" element={<IdeasPage />} />
           <Route path="/rating" element={<Rating />} />
+          <Route path="/check3d" element={<Check3D />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Shell>
@@ -148,7 +149,7 @@ export default function App() {
           <Route path="/" element={<StudentProfile />} />
           <Route path="/ideas" element={<IdeasPage />} />
           <Route path="/rating" element={<Rating />} />
-          <Route path="/check3d" element={<Placeholder title="Проверка идеи на 3D-модели" />} />
+          <Route path="/check3d" element={<Check3D />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Shell>
@@ -169,12 +170,9 @@ export default function App() {
         <Route path="/ideas" element={<ManagerIdeas />} />
         <Route path="/plan" element={<Plan />} />
         <Route path="/editor" element={<Editor />} />
+        <Route path="/check3d" element={<Check3D />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Shell>
   );
-}
-
-function Placeholder({ title }: { title: string }) {
-  return <PageTitle title={title} subtitle="Раздел в разработке" />;
 }

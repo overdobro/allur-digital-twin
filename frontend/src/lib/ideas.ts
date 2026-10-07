@@ -16,6 +16,12 @@ export interface Idea {
   id: number; author_id: number; title: string; text: string; section_id: string | null; created_at: string;
   ai: AiEval | null; ai_source: string | null; status: IdeaStatus; expert_score: number | null; expert_comment: string | null;
   reviewed_at: string | null; final_score: number | null; author: User | null;
+  check3d: Check3d | null;
+}
+
+export interface Check3d {
+  changes: string[]; before: number; after: number; bottleneck_before: string; bottleneck_after: string;
+  conflicts: string[]; consequences: string[]; checked_at: string;
 }
 
 export const ideasApi = {
@@ -24,6 +30,7 @@ export const ideasApi = {
   get: (id: number) => send<Idea>("GET", `/ideas/${id}`),
   create: (body: { title: string; text: string; section_id: string | null }) => send<Idea>("POST", "/ideas", body),
   reevaluate: (id: number) => send<Idea>("POST", `/ideas/${id}/reevaluate`),
+  check3d: (id: number, body: Omit<Check3d, "checked_at">) => send<Idea>("POST", `/ideas/${id}/check3d`, body),
   review: (id: number, body: { status: IdeaStatus; expert_score?: number | null; expert_comment?: string | null }) =>
     send<Idea>("PATCH", `/ideas/${id}/review`, body),
 };

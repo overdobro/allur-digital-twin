@@ -93,3 +93,22 @@ def test_reevaluate_rights():
     idea_id = mine.get("/api/ideas/mine").json()[0]["id"]
     assert other.post(f"/api/ideas/{idea_id}/reevaluate").status_code == 403
     assert mine.post(f"/api/ideas/{idea_id}/reevaluate").status_code == 200
+
+
+def test_scenario_from_text():
+    f = ideas_svc.scenario_from_text
+    assert f("перенос компрессорной ближе к окрасочному цеху, стабилизировать давление") == ("compressor", "move")
+    # «переносить ТО роботов» — про график, не про перемещение робота
+    assert f("переносить плановое то роботов на пересменку") == (None, "add")
+    assert f("второй робот на посту геометрии") == ("robot", "add")
+    assert f("убрать андон с поста") == ("andon", "remove")
+
+
+def test_check3d_saved_by_author_only():
+    body = {"changes": ["Добавлен: Робот"], "before": 4752, "after": 4839, "bottleneck_before": "Сварка",
+            "bottleneck_after": "Окраска", "conflicts": [], "consequences": ["Темп участка «Сварка» +4"]}
+    idea = next(i for i in demo("student_02").get("/api/ideas/mine").json() if i["ai"]["scenario"])
+    assert demo("student_03").post(f"/api/ideas/{idea['id']}/check3d", json=body).status_code == 403
+    r = demo("student_02").post(f"/api/ideas/{idea['id']}/check3d", json=body)
+    assert r.status_code == 200 and r.json()["check3d"]["after"] == 4839 and r.json()["check3d"]["checked_at"]
+    assert manager().get(f"/api/ideas/{idea['id']}").json()["check3d"]["bottleneck_after"] == "Окраска"

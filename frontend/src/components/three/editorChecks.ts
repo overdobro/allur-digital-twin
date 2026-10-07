@@ -197,6 +197,16 @@ export function assess(base: Item[], draft: Item[], baseline: StageInput[], targ
   const dm = ra.monthly - rb.monthly;
   if (dm) cons.push(`Устойчивый выпуск ${dm > 0 ? "+" : ""}${dm} авто/мес (${rb.monthly} → ${ra.monthly}).`);
   for (const [z, f] of Object.entries(free)) if (f.after < f.before - 2) cons.push(`Свободное место на участке «${zoneById(z) ? baseline.find((b) => b.id === z)?.name ?? z : z}» ${f.before}% → ${f.after}%.`);
+  // Перемещение внутри участка не меняет число единиц оборудования — в модели выпуска эффекта нет, говорим об этом прямо
+  for (const d of draft) {
+    const b = baseById.get(d.id);
+    if (!b || (b.x === d.x && b.z === d.z)) continue;
+    const zb = zoneAt(b.x, b.z), zd = zoneAt(d.x, d.z);
+    if (zb && zb === zd) {
+      cons.push(`${d.label ?? CATALOG[d.type].label}: перемещение в пределах участка «${baseline.find((x) => x.id === zb)?.name ?? zb}» — выпуск в модели не меняется; эффект (длина магистралей, проходы, логистика) оценивает технолог.`);
+      if (NO_MODEL_EFFECT[d.type]) notes.add(NO_MODEL_EFFECT[d.type]!);
+    }
+  }
   notes.forEach((n) => cons.push(n[0].toUpperCase() + n.slice(1) + "."));
   return { before: rb, after: ra, deltas, conflicts: conf, free, consequences: cons };
 }

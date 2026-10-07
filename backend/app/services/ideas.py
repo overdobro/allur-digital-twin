@@ -124,6 +124,20 @@ LOW_COMPLEXITY = r"чек-лист|регламент|обучен|распис�
 UNREALISTIC = r"полностью|без людей|100\s?%|никогда|все линии сразу"
 
 
+def scenario_from_text(t: str) -> tuple[str | None, str]:
+    """Объект — тот, что упомянут в тексте первым. «Перенести/убрать X» — только если X стоит сразу после глагола:
+    «Переносить плановое ТО роботов» — это о графике, а не о перемещении робота, сценария для 3D нет."""
+    hits = [(m.start(), o) for o, rx in OBJECT_KEYWORDS if (m := re.search(rx, t))]
+    obj = min(hits)[1] if hits else None
+    verb = re.search(r"(перен\w*|перемест\w*|убра\w*|демонтир\w*)\s+((?:\S+\s+){0,1}\S+)", t)
+    if not verb or not obj:
+        return obj, "add"
+    target = dict(OBJECT_KEYWORDS)[obj]
+    if not re.search(target, verb.group(2)):
+        return None, "add"
+    return obj, "remove" if verb.group(1).startswith(("убра", "демонтир")) else "move"
+
+
 def rules_evaluate(title: str, text: str, section_id: str | None, repo: Repository) -> dict:
     t = f"{title} {text}".lower()
     sec = section_id or next((s for s, rx in KEYWORDS.items() if re.search(rx, t)), None)
@@ -134,8 +148,7 @@ def rules_evaluate(title: str, text: str, section_id: str | None, repo: Reposito
     effect = "high" if problem and on_driver else ("medium" if sec else "low")
     complexity = "high" if re.search(HIGH_COMPLEXITY, t) else ("low" if re.search(LOW_COMPLEXITY, t) else "medium")
     realism = "low" if re.search(UNREALISTIC, t) else ("medium" if complexity == "high" else "high")
-    obj = next((o for o, rx in OBJECT_KEYWORDS if re.search(rx, t)), None)
-    action = "move" if re.search(r"перен|перемест", t) else "add"
+    obj, action = scenario_from_text(t)
     name = repo.section_by_id(sec)["name"] if sec else None
     checks = {
         "painting": ["брак окраски до и после (сейчас 5,2% при норме ≤2%)", "простои Камеры-02"],
