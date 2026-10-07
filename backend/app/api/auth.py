@@ -1,3 +1,5 @@
+import os
+
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 from sqlmodel import Session, select
@@ -44,6 +46,12 @@ class LoginIn(BaseModel):
 
 class DemoIn(BaseModel):
     login: str
+
+
+@router.get("/hint")
+def hint():
+    """Подсказку с демо-паролем показываем, только пока пароль руководителя не задан через MANAGER_PASSWORD."""
+    return {"manager_demo_password": None if os.getenv("MANAGER_PASSWORD") else "allur2026"}
 
 
 @router.get("/accounts")

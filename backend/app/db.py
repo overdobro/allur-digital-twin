@@ -4,14 +4,16 @@
 Здесь только то, что создают пользователи. Локально — SQLite, на Vercel — Postgres (Neon) через DATABASE_URL.
 """
 import os
+import time
 from datetime import date, datetime, timezone
 from functools import lru_cache
 
 from sqlalchemy import UniqueConstraint, inspect, text
+from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
-from app.security import hash_password
+from app.security import hash_password, verify_password
 
 
 def utcnow() -> datetime:
@@ -87,7 +89,10 @@ class Scenario(SQLModel, table=True):
 # ---------- подключение ----------
 
 def database_url() -> str:
-    url = os.getenv("DATABASE_URL", "sqlite:///./data/twin.db")
+    # На Vercel файловая система только для чтения, кроме /tmp; без DATABASE_URL база живёт в /tmp
+    # (у каждого инстанса своя и пропадает при перезапуске — для показа подключите Neon Postgres)
+    default = "sqlite:////tmp/twin.db" if os.getenv("VERCEL") else "sqlite:///./data/twin.db"
+    url = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or default
     # Neon/Vercel отдают postgres:// — SQLAlchemy нужен явный драйвер psycopg
     if url.startswith("postgres://"):
         url = "postgresql+psycopg://" + url[len("postgres://"):]
@@ -101,13 +106,39 @@ def get_engine():
     """Движок создаётся один раз на процесс; таблицы и демо-аккаунты — при первом обращении
     (на Vercel функции не всегда проходят lifespan, в тестах TestClient его не вызывает)."""
     engine = _make_engine(database_url())
-    SQLModel.metadata.create_all(engine)
+    try:
+        SQLModel.metadata.create_all(engine)
+    except (IntegrityError, ProgrammingError):
+        SQLModel.metadata.create_all(engine)  # параллельный инстанс создал таблицы одновременно — повторить проверку
     _add_missing_columns(engine)
-    with Session(engine) as s:
-        seed_users(s)
-        seed_ideas(s)
-        seed_incidents(s)
+    _seed(engine)
     return engine
+
+
+def _seed(engine) -> None:
+    """Демо-наполнение. На Vercel два инстанса могут стартовать одновременно на пустой базе:
+    второй получит конфликт уникальности — откатываемся, ждём и проверяем снова (данные уже записал первый)."""
+    for attempt in range(3):
+        try:
+            with Session(engine) as s:
+                seed_users(s)
+                seed_ideas(s)
+                seed_incidents(s)
+            return
+        except (IntegrityError, OperationalError, ProgrammingError):
+            if attempt == 2:
+                raise
+            time.sleep(0.5 * (attempt + 1))
+
+
+def reset_demo(s: Session) -> None:
+    """Сброс демо-данных к исходным: идеи, сообщения, смены, работы, сценарии. Аккаунты не трогаем."""
+    for model in (Scenario, WorkLog, Attendance, Incident, Idea):
+        for row in s.exec(select(model)):
+            s.delete(row)
+    s.commit()
+    seed_ideas(s)
+    seed_incidents(s)
 
 
 def _add_missing_columns(engine) -> None:
@@ -156,7 +187,14 @@ STUDENTS = [("student_01", 2), ("student_02", 3), ("student_03", 4), ("student_0
 
 
 def seed_users(s: Session) -> None:
-    if s.exec(select(User).limit(1)).first():
+    existing = s.exec(select(User).where(User.login == "manager")).first()
+    if existing:
+        # Пароль поменяли в настройках (MANAGER_PASSWORD) после первого запуска — применяем
+        pw = os.getenv("MANAGER_PASSWORD")
+        if pw and not verify_password(pw, existing.password_hash):
+            existing.password_hash = hash_password(pw)
+            s.add(existing)
+            s.commit()
         return
     s.add(User(login="manager", role="manager", name="Руководитель производства", title="Руководитель",
                password_hash=hash_password(os.getenv("MANAGER_PASSWORD", "allur2026"))))

@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useState, type FormEvent } from "react";
-import { auth, useApi } from "../api/client";
+import { auth, send, useApi } from "../api/client";
 import type { User } from "../api/types";
 import { SECTION_NAME, useAuth } from "../lib/auth";
 
@@ -17,6 +17,8 @@ const ROLES: { mode: Exclude<Mode, null>; icon: string; title: string; text: str
 function ManagerLogin() {
   const { loginManager } = useAuth();
   const [login, setLogin] = useState("manager");
+  // Подсказку с паролем сервер отдаёт, только пока задан демо-пароль (на публичном сайте его можно сменить)
+  const hint = useApi(() => send<{ manager_demo_password: string | null }>("GET", "/auth/hint"), []);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -34,7 +36,7 @@ function ManagerLogin() {
       <button disabled={busy || !password} className="w-full rounded-lg bg-brand py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50">
         {busy ? "Вход…" : "Войти"}
       </button>
-      <p className="text-[11px] text-muted">Демо: логин <b>manager</b>, пароль <b>allur2026</b></p>
+      {hint.data?.manager_demo_password && <p className="text-[11px] text-muted">Демо: логин <b>manager</b>, пароль <b>{hint.data.manager_demo_password}</b></p>}
     </form>
   );
 }

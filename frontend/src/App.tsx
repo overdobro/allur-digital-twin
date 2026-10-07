@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Navigate, NavLink, Route, Routes } from "react-router-dom";
-import { STATIC } from "./api/client";
+import { send, STATIC } from "./api/client";
 import type { Role } from "./api/types";
 import { useAuth } from "./lib/auth";
 import RoleSelect from "./pages/RoleSelect";
@@ -74,6 +74,7 @@ function Shell({ nav, children, manager }: { nav: NavItem[]; children: ReactNode
         <div className="mt-auto px-5 py-4 text-[11px] leading-relaxed text-muted">
           {manager && <NavLink to="/assumptions" className="underline decoration-dotted hover:text-slate-200">Допущения и методика</NavLink>}
           <div className="mt-1">Данные: тестовый набор кейса</div>
+          {manager && !STATIC && <DemoReset />}
         </div>
       </aside>
 
@@ -174,5 +175,24 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Shell>
+  );
+}
+
+/** Сброс демо-данных перед показом (публичный сайт): идеи, сообщения, смены, сценарии — к исходным. */
+function DemoReset() {
+  const [stage, setStage] = useState<"idle" | "confirm" | "busy">("idle");
+  const reset = async () => {
+    setStage("busy");
+    try { await send("POST", "/demo/reset"); window.location.reload(); } catch { setStage("idle"); }
+  };
+  if (stage === "idle") return <button onClick={() => setStage("confirm")} className="mt-2 block underline decoration-dotted hover:text-slate-200">↺ Сбросить демо-данные</button>;
+  return (
+    <div className="mt-2 rounded-md border border-line bg-panel p-2 text-slate-300">
+      Вернуть идеи, сообщения и сценарии к исходным?
+      <div className="mt-1.5 flex gap-2">
+        <button onClick={reset} disabled={stage === "busy"} className="rounded bg-brand px-2 py-0.5 font-semibold text-white disabled:opacity-50">{stage === "busy" ? "Сброс…" : "Сбросить"}</button>
+        <button onClick={() => setStage("idle")} className="rounded border border-line px-2 py-0.5">Отмена</button>
+      </div>
+    </div>
   );
 }

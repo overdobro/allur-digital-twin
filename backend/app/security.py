@@ -33,8 +33,11 @@ def verify_password(password: str, stored: str | None) -> bool:
 
 
 def _secret() -> bytes:
-    # На Vercel обязательно задать SECRET_KEY: инстансов несколько, ключ должен совпадать
-    return os.getenv("SECRET_KEY", "dev-secret-change-me").encode()
+    key = os.getenv("SECRET_KEY")
+    if not key and os.getenv("VERCEL"):
+        # Публичный сайт с известным ключом = любой подделает cookie руководителя. Лучше явная ошибка.
+        raise RuntimeError("На Vercel задайте переменную окружения SECRET_KEY (длинная случайная строка)")
+    return (key or "dev-secret-change-me").encode()
 
 
 def _b64(b: bytes) -> str:

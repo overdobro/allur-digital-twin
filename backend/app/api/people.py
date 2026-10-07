@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from app.api.auth import public_user, require
-from app.db import Attendance, Idea, Incident, Scenario, User, WorkLog, get_session
+from app.db import Attendance, Idea, Incident, Scenario, User, WorkLog, get_session, reset_demo
 from app.repository import get_repository
 from app.services.ideas import evaluate
 from app.services.layout_ai import assess_layout
@@ -310,3 +310,12 @@ def delete_scenario(scenario_id: int, _: User = Depends(require("manager")), s: 
         raise HTTPException(404, "Сценарий не найден")
     s.delete(sc)
     s.commit()
+
+
+# ---------- демо ----------
+
+@router.post("/demo/reset")
+def demo_reset(_: User = Depends(require("manager")), s: Session = Depends(get_session)):
+    """Вернуть демо-данные к исходным перед показом: идеи, сообщения, смены, работы, сценарии."""
+    reset_demo(s)
+    return {"ideas": len(list(s.exec(select(Idea)))), "incidents": len(list(s.exec(select(Incident))))}

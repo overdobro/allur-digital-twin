@@ -44,3 +44,30 @@ def test_scenarios_crud_manager_only():
     st = TestClient(app); st.post("/api/auth/demo", json={"login": "student_01"})
     assert st.get("/api/scenarios").status_code == 403
     assert c.delete(f"/api/scenarios/{sc['id']}").status_code == 204
+
+
+def test_demo_reset_manager_only():
+    st = TestClient(app); st.post("/api/auth/demo", json={"login": "student_01"})
+    st.post("/api/ideas", json={"title": "Лишняя идея перед показом", "text": "Эта идея должна исчезнуть после сброса"})
+    assert st.post("/api/demo/reset").status_code == 403
+    r = manager().post("/api/demo/reset")
+    assert r.status_code == 200 and r.json() == {"ideas": 17, "incidents": 2}
+    assert not any(i["title"] == "Лишняя идея перед показом" for i in manager().get("/api/ideas/rating").json())
+
+
+def test_root_requirements_match_backend():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+    pins = lambda p: sorted(l.strip() for l in p.read_text().splitlines() if l.strip() and not l.startswith("#"))
+    assert pins(root / "requirements.txt") == pins(root / "backend" / "requirements.txt")
+
+
+def test_vercel_secret_required(monkeypatch):
+    import pytest
+    from app import security
+    monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.delenv("SECRET_KEY", raising=False)
+    with pytest.raises(RuntimeError):
+        security.make_token(1, "manager")
+    monkeypatch.setenv("SECRET_KEY", "x" * 40)
+    assert security.read_token(security.make_token(1, "manager"))
