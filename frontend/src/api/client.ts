@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { effectCalc, type EffectInputs } from "../lib/effect";
 import type {
-  Advice, Downtime, Effect, Forecast, LineMetrics, Meta, Overview, QualityRow, ReplayStep, RiskResponse, SectionDetail, User,
+  Advice, Downtime, Effect, Forecast, LineMetrics, Meta, Overview, QualityRow, ProductionPlan, ReplayStep, RiskResponse, SectionDetail, User,
 } from "./types";
 
 /** Статический режим (GitHub Pages): ответы API заранее выгружены в JSON, сервера нет. */
@@ -48,6 +48,7 @@ export const api = {
     return effectCalc(await inputsCache, p.working_days ?? 22, p.defect_target_pct ?? 2, p.downtime_cut_pct ?? 50, p.margin_per_car ?? null);
   },
   replay: () => get<{ steps: ReplayStep[]; total: number }>("/replay"),
+  plan: () => get<ProductionPlan>("/plan"),
 };
 
 // ---------- запись (роли, идеи, инциденты) — только с сервером ----------

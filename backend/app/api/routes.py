@@ -4,6 +4,7 @@ from app.config import ASSUMPTIONS, THRESHOLDS, settings
 from app.repository import Repository, get_repository
 from app.services.advisor import get_advice
 from app.services.effect import effect, monthly_forecast
+from app.services.plan import production_plan
 from app.services.kpi import downtime_metrics, factory_kpi, line_metrics
 from app.services.risk import WEIGHTS, base_recommendation, bottleneck, section_risks
 from app.services.replay import timeline
@@ -110,3 +111,8 @@ def business_effect(
 @router.get("/replay")
 def replay(repo: Repository = Depends(get_repository)):
     return timeline(repo)
+
+
+@router.get("/plan")
+def plan(working_days: int = Query(None, ge=1, le=31), repo: Repository = Depends(get_repository)):
+    return production_plan(repo, working_days or settings.working_days)

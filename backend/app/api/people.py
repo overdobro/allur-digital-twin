@@ -7,9 +7,10 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from app.api.auth import public_user, require
-from app.db import Attendance, Idea, Incident, User, WorkLog, get_session
+from app.db import Attendance, Idea, Incident, Scenario, User, WorkLog, get_session
 from app.repository import get_repository
 from app.services.ideas import evaluate
+from app.services.layout_ai import assess_layout
 
 router = APIRouter(tags=["people"])
 TZ = timezone(timedelta(hours=5))  # Костанай, UTC+5
@@ -228,3 +229,57 @@ def add_work(body: WorkIn, u: User = Depends(require("employee")), s: Session = 
 @router.get("/worklog/mine")
 def my_work(u: User = Depends(require("employee")), s: Session = Depends(get_session)):
     return [w.model_dump() for w in s.exec(select(WorkLog).where(WorkLog.user_id == u.id).order_by(WorkLog.created_at.desc()).limit(50))]
+
+
+# ---------- редактор 3D: сценарии и AI-оценка ----------
+
+class AssessIn(BaseModel):
+    changes: list[str] = Field(max_length=100)
+    before: dict
+    after: dict
+    conflicts: list[str] = Field(default_factory=list, max_length=200)
+    consequences: list[str] = Field(default_factory=list, max_length=100)
+    assumptions: list[str] = Field(default_factory=list, max_length=50)
+
+
+@router.post("/editor/assess")
+def editor_assess(body: AssessIn, _: User = Depends(require("manager", "student", "employee"))):
+    return assess_layout(body.model_dump())
+
+
+class ScenarioIn(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    items: list[dict] = Field(max_length=300)
+    summary: dict
+    idea_id: int | None = None
+
+
+def scenario_out(sc: Scenario, author: User | None) -> dict:
+    return {**sc.model_dump(exclude={"items_json", "summary_json"}), "items": json.loads(sc.items_json),
+            "summary": json.loads(sc.summary_json), "author": public_user(author) if author else None}
+
+
+@router.post("/scenarios", status_code=201)
+def save_scenario(body: ScenarioIn, u: User = Depends(require("manager")), s: Session = Depends(get_session)):
+    sc = Scenario(name=body.name.strip(), author_id=u.id, items_json=json.dumps(body.items, ensure_ascii=False),
+                  summary_json=json.dumps(body.summary, ensure_ascii=False), idea_id=body.idea_id)
+    s.add(sc)
+    s.commit()
+    s.refresh(sc)
+    return scenario_out(sc, u)
+
+
+@router.get("/scenarios")
+def list_scenarios(_: User = Depends(require("manager")), s: Session = Depends(get_session)):
+    rows = list(s.exec(select(Scenario).order_by(Scenario.created_at.desc())))
+    authors = {u.id: u for u in s.exec(select(User))} if rows else {}
+    return [scenario_out(r, authors.get(r.author_id)) for r in rows]
+
+
+@router.delete("/scenarios/{scenario_id}", status_code=204)
+def delete_scenario(scenario_id: int, _: User = Depends(require("manager")), s: Session = Depends(get_session)):
+    sc = s.get(Scenario, scenario_id)
+    if not sc:
+        raise HTTPException(404, "Сценарий не найден")
+    s.delete(sc)
+    s.commit()

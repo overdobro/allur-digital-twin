@@ -23,6 +23,8 @@ import AiRisk from "./pages/AiRisk";
 import Executive from "./pages/Executive";
 import WhatIf from "./pages/WhatIf";
 import Section from "./pages/Section";
+import Plan from "./pages/Plan";
+import Editor from "./pages/Editor";
 import Assumptions from "./pages/Assumptions";
 
 interface NavItem { to: string; label: string; icon: string }
@@ -30,7 +32,9 @@ const ROLE_LABEL: Record<Role, string> = { manager: "Руководитель", 
 
 const NAV: NavItem[] = [
   { to: "/", label: "Обзор завода", icon: "M3 12l9-8 9 8M5 10v10h14V10" },
-  { to: "/production", label: "Производство", icon: "M4 20V10l5 3V10l5 3V6l6 4v10z" },
+  { to: "/editor", label: "3D-редактор", icon: "M12 2l9 5v10l-9 5-9-5V7zM12 22V12M21 7l-9 5-9-5" },
+  { to: "/production", label: "Линии", icon: "M4 20V10l5 3V10l5 3V6l6 4v10z" },
+  { to: "/plan", label: "План", icon: "M8 3v4M16 3v4M4 9h16M5 5h14v16H5zM9 14l2 2 4-4" },
   { to: "/quality", label: "Качество", icon: "M9 12l2 2 4-4M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z" },
   { to: "/downtime", label: "Простои", icon: "M12 8v4l3 2M12 3a9 9 0 100 18 9 9 0 000-18z" },
   { to: "/ai", label: "AI Risk", icon: "M12 3v3M12 18v3M3 12h3M18 12h3M7 7l2 2M15 15l2 2M7 17l2-2M15 9l2-2M12 9a3 3 0 100 6 3 3 0 000-6z" },
@@ -163,6 +167,8 @@ export default function App() {
         <Route path="/sections/:id" element={<Section />} />
         <Route path="/assumptions" element={<Assumptions />} />
         <Route path="/ideas" element={<ManagerIdeas />} />
+        <Route path="/plan" element={<Plan />} />
+        <Route path="/editor" element={<Editor />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Shell>

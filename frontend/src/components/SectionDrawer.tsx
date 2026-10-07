@@ -109,6 +109,8 @@ function Body({ id }: { id: string }) {
         </div>
       </motion.div>
 
+      <motion.div variants={item}><PlanLink id={id} /></motion.div>
+
       <motion.div variants={item} data-tour="drawer-equipment">
         <div className="mb-2 text-xs text-muted">Оборудование · инциденты за период</div>
         {s.equipment.length === 0 && <p className="text-sm text-muted">Событий по оборудованию в данных нет.</p>}
@@ -148,6 +150,32 @@ function Body({ id }: { id: string }) {
         <Link to={`/sections/${id}`} className="text-xs text-muted underline decoration-dotted hover:text-white">Полная детализация участка →</Link>
       </motion.div>
     </motion.div>
+  );
+}
+
+/** 9.4: участок → его линия → план/факт → простой → AI-риск невыполнения плана → проверка изменения на 3D. */
+function PlanLink({ id }: { id: string }) {
+  const plan = useApi(api.plan, []);
+  const down = useApi(() => api.downtime(null), []);
+  if (!plan.data) return null;
+  const r = plan.data.risks.find((x) => x.section_id === id);
+  const mins = (down.data?.events ?? []).filter((e) => e.section_id === id).reduce((a, e) => a + e.minutes, 0);
+  return (
+    <div className="rounded-xl border border-line bg-panel2 p-4">
+      <div className="text-xs text-muted">Линия участка и план</div>
+      <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
+        {r && <span>план-факт <b className="num">{r.fact}/{r.plan}</b> ({fmtPct(r.plan_completion_pct)}%)</span>}
+        <span>простои за период <b className="num">{mins} мин</b></span>
+      </div>
+      <p className="mt-2 text-sm" style={{ color: r ? STATUS_HEX[r.stage === "realized" ? "critical" : "warning"] : STATUS_HEX.ok }}>
+        {r ? `AI: риск невыполнения плана${r.bottleneck ? " — узкое место завода" : ""}. ${r.why}` : "AI: риска невыполнения плана по участку не видно."}
+      </p>
+      <div className="mt-3 flex gap-3 text-xs">
+        <Link to="/production" className="text-muted underline decoration-dotted hover:text-white">Карточка линии</Link>
+        <Link to="/plan" className="text-muted underline decoration-dotted hover:text-white">План</Link>
+        <Link to={`/editor?section=${id}`} className="font-semibold text-brand underline decoration-dotted hover:brightness-125">Проверить изменение на 3D-модели →</Link>
+      </div>
+    </div>
   );
 }
 

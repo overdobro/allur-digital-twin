@@ -29,7 +29,7 @@ def file_name(path: str, params: dict | None = None) -> str:
 def requests() -> list[tuple[str, dict | None]]:
     repo = get_repository()
     dates: list[str | None] = [None, *repo.dates]
-    reqs: list[tuple[str, dict | None]] = [(p, None) for p in ("/meta", "/risk", "/advice", "/forecast", "/effect", "/replay")]
+    reqs: list[tuple[str, dict | None]] = [(p, None) for p in ("/meta", "/risk", "/advice", "/forecast", "/effect", "/replay", "/plan")]
     for path, d in itertools.product(("/overview", "/production", "/quality", "/downtime"), dates):
         reqs.append((path, {"date": d} if d else None))
     for s, d in itertools.product([s for s in repo.sections if s["line"]], dates):

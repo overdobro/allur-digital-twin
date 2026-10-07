@@ -1,16 +1,19 @@
 import { CameraControls, Html, PerformanceMonitor } from "@react-three/drei";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import type CameraControlsImpl from "camera-controls";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import * as THREE from "three";
 import type { FactoryNode, Status } from "../../api/types";
 import { useFlowSim, type SimGeometry } from "../../lib/flowSim";
 import { STATUS_HEX, STATUS_LABEL } from "../../lib/format";
 import { keyMetric, type FlowEvent } from "../FactoryFlow";
 import { BatchProvider } from "./batch";
 import { Cars } from "./cars";
-import { AssemblyShop, At, back, FinishedGoods, PaintShop, TestLine, TurnBuffer, WarehouseIn, WeldingShop, Workers } from "./equipment";
-import { Andon, Hall, ZoneOutline } from "./hall";
+import { EditableObjects } from "./EditableObjects";
+import { baseLayout, JIG_T, snap, type Item, type ObjType } from "./editorModel";
+import { AssemblyShop, FinishedGoods, PaintShop, TestLine, TurnBuffer, WarehouseIn, WeldingShop, Workers } from "./equipment";
+import { Hall, ZoneOutline } from "./hall";
 import { pointAt, TRACK_END, TRACK_START, zoneCenter, ZONES } from "./layout";
 
 /**
@@ -71,8 +74,10 @@ function EventBubble({ event, pos }: { event: FlowEvent; pos: [number, number, n
 
 const HOME = { pos: [3.2, 17, 22.5] as const, target: [3.2, 0.5, 1.2] as const };
 
-function CameraRig({ focus, motion, paused }: { focus: { x: number; z: number } | null; motion: boolean; paused: boolean }) {
+function CameraRig({ focus, motion, paused, locked = false }: { focus: { x: number; z: number } | null; motion: boolean; paused: boolean; locked?: boolean }) {
   const ref = useRef<CameraControlsImpl>(null);
+  // Во время перетаскивания объекта камера не должна вращаться
+  useEffect(() => { if (ref.current) ref.current.enabled = !locked; }, [locked]);
   const lastUser = useRef(-1e9);
   useEffect(() => {
     const c = ref.current;
@@ -99,6 +104,19 @@ function CameraRig({ focus, motion, paused }: { focus: { x: number; z: number } 
 
 // ---------- Сцена ----------
 
+/** Тестовый хук: проекция мировой точки в пиксели экрана (для автотестов редактора). */
+function TestHooks() {
+  const { camera, gl } = useThree();
+  useEffect(() => {
+    (window as unknown as { __twinProject?: unknown }).__twinProject = (x: number, y: number, z: number) => {
+      const v = new THREE.Vector3(x, y, z).project(camera);
+      const r = gl.domElement.getBoundingClientRect();
+      return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+    };
+  }, [camera, gl]);
+  return null;
+}
+
 /** Число вызовов отрисовки за кадр → атрибут data-draw-calls (контроль производительности). */
 function RenderStats() {
   const gl = useThree((s) => s.gl);
@@ -112,7 +130,7 @@ function RenderStats() {
   return null;
 }
 
-function Scene({ nodes, override, highlight, onSelect, event, focusId, motion, bloom, paused }: Factory3DProps & { motion: boolean; bloom: boolean; paused: boolean }) {
+function Scene({ nodes, override, highlight, onSelect, event, focusId, motion, bloom, paused, editor }: Factory3DProps & { motion: boolean; bloom: boolean; paused: boolean }) {
   const sorted = useMemo(() => [...nodes].sort((a, b) => a.order - b.order), [nodes]);
   const geo = useMemo<SimGeometry>(() => ({ zones: ZONES, trackStart: TRACK_START, trackEnd: TRACK_END, carGap: 2.3, baseSpeed: 3.2 }), []);
   const sim = useFlowSim(sorted, geo, motion, true);
@@ -129,6 +147,37 @@ function Scene({ nodes, override, highlight, onSelect, event, focusId, motion, b
 
   const focus = focusId && ZONES.some((z) => z.id === focusId) ? zoneCenter(focusId) : null;
 
+  // ---- объекты редактора: базовая расстановка или черновик редактора ----
+  const baseItems = useMemo(() => baseLayout(), []);
+  const items = editor?.items ?? baseItems;
+  const itemStatus = (it: Item): Status => {
+    if (it.label === "ABB-01" || it.label === "ABB-04") return eq("welding", it.label);
+    if (it.type === "andon") {
+      const n = node(it.id.replace("andon-", ""));
+      return n ? st(n) : "no_data";
+    }
+    return "ok";
+  };
+  const drag = useRef<{ id: string; dx: number; dz: number; moved: boolean } | null>(null);
+  const [locked, setLocked] = useState(false);
+  const startDrag = (id: string, e: ThreeEvent<PointerEvent>) => {
+    if (!editor || editor.placing) return;
+    e.stopPropagation();
+    const it = items.find((x) => x.id === id)!;
+    const hit = e.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
+    drag.current = { id, dx: hit ? it.x - hit.x : 0, dz: hit ? it.z - hit.z : 0, moved: false };
+    setLocked(true);
+    editor.onSelect(id);
+  };
+  const endDrag = () => {
+    if (drag.current) { const moved = drag.current.moved; window.setTimeout(() => { drag.current = null; }, 0); setLocked(false); if (moved) editor?.onCommit?.(); }
+  };
+  useEffect(() => {
+    const up = () => endDrag();
+    window.addEventListener("pointerup", up);
+    return () => window.removeEventListener("pointerup", up);
+  });
+
   return (
     <>
       <color attach="background" args={["#0b1017"]} />
@@ -142,28 +191,34 @@ function Scene({ nodes, override, highlight, onSelect, event, focusId, motion, b
         const n = node(z.id);
         return n ? <ZoneOutline key={z.id} zone={z} status={st(n)} highlight={highlight === z.id || focusId === z.id} /> : null;
       })}
-      {/* Андон-колонны в конце каждого участка с данными, со стороны камеры */}
-      {ZONES.map((z) => {
-        const n = node(z.id);
-        if (!n?.metrics) return null;
-        const b = back(z.id);
-        return <At key={z.id} zone={z.id} t={0.97}><Andon position={[0, 0, -b * 2.3]} status={st(n)} /></At>;
-      })}
-
       <BatchProvider>
       <WarehouseIn />
-      <WeldingShop abb01={eq("welding", "ABB-01")} abb04={eq("welding", "ABB-04")} motion={motion} />
+      <WeldingShop motion={motion} />
       <PaintShop booth={eq("painting", "Камера-02")} motion={motion} />
       <TurnBuffer />
       <AssemblyShop conveyor={eq("assembly", "Конвейер-03")} motion={motion} />
       <TestLine motion={motion} />
       <FinishedGoods />
+      {!editor && <EditableObjects items={items} status={itemStatus} motion={motion} />}
       </BatchProvider>
+      {editor && (
+        <>
+          <EditableObjects items={items} status={itemStatus} motion={motion}
+            editor={{ selectedId: editor.selectedId, invalid: editor.invalid, onPointerDown: startDrag }} />
+          {/* Пол-приёмник для перетаскивания и установки объектов */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.003, 0]} visible={false}
+            onPointerMove={(e) => { if (drag.current) { e.stopPropagation(); editor.onMove(drag.current.id, snap(e.point.x + drag.current.dx), snap(e.point.z + drag.current.dz)); drag.current.moved = true; } }}
+            onPointerUp={() => endDrag()}
+            onClick={(e) => { if (editor.placing) { e.stopPropagation(); editor.onPlace(snap(e.point.x), snap(e.point.z)); } else if (!drag.current?.moved) editor.onSelect(null); }}>
+            <planeGeometry args={[120, 80]} />
+          </mesh>
+        </>
+      )}
       <Workers spots={WORKERS} />
 
       <Cars sim={sim} />
 
-      {sorted.map((n) => {
+      {!editor && sorted.map((n) => {
         const c = zoneCenter(n.id);
         return (
           <StationLabel key={n.id} node={n} status={st(n)} pos={[c.x, 6.6, c.z]} counters={motion ? counters[n.id] : undefined}
@@ -175,7 +230,8 @@ function Scene({ nodes, override, highlight, onSelect, event, focusId, motion, b
       {event && ZONES.some((z) => z.id === event.section_id) && (() => { const c = zoneCenter(event.section_id); return <EventBubble event={event} pos={[c.x, 8, c.z]} />; })()}
 
       <RenderStats />
-      <CameraRig focus={focus ? { x: focus.x, z: focus.z } : null} motion={motion} paused={paused} />
+      <TestHooks />
+      <CameraRig focus={focus ? { x: focus.x, z: focus.z } : null} motion={motion && !editor} paused={paused} locked={locked} />
       {bloom && (
         <EffectComposer>
           <Bloom mipmapBlur intensity={0.7} luminanceThreshold={0.9} luminanceSmoothing={0.2} />
@@ -217,16 +273,40 @@ const WORKERS = (() => {
     const p = pointAt(z.start + (z.end - z.start) * t);
     out.push({ x: p.x + Math.sin(p.heading) * side, z: p.z + Math.cos(p.heading) * side, rot: p.heading + (side > 0 ? Math.PI : 0) });
   };
-  [0.12, 0.3, 0.48].forEach((t) => add("welding", t, -1.5));
+  JIG_T.forEach((t) => add("welding", t, -1.5));
   add("painting", 0.6, 1.3); add("painting", 0.93, -1.3);
   [0.25, 0.42, 0.6].forEach((t, i) => add("assembly", t, i % 2 ? 1.3 : -1.3));
   add("qc", 0.76, -1.6); add("qc", 0.36, 1.6);
   return out;
 })();
 
+export interface EditorProps {
+  items: Item[];
+  selectedId: string | null;
+  invalid: Set<string>;
+  placing: ObjType | null;
+  onSelect: (id: string | null) => void;
+  onMove: (id: string, x: number, z: number) => void;
+  onPlace: (x: number, z: number) => void;
+  onCommit?: () => void;
+}
+
 export interface Factory3DProps {
   nodes: FactoryNode[]; override?: Record<string, Status>; highlight?: string | null;
   onSelect: (id: string) => void; event?: FlowEvent | null; focusId?: string | null;
+  /** Режим «Редактор цифрового двойника» */
+  editor?: EditorProps;
+}
+
+/** Предохранитель: ошибка внутри 3D не роняет страницу — сцена пересоздаётся. */
+class SceneBoundary extends Component<{ onError: () => void; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(err: unknown) {
+    console.warn("3D-сцена пересоздаётся после ошибки:", err);
+    this.props.onError();
+  }
+  render() { return this.state.failed ? null : this.props.children; }
 }
 
 export default function Factory3D(props: Factory3DProps & { motion: boolean }) {
@@ -234,15 +314,30 @@ export default function Factory3D(props: Factory3DProps & { motion: boolean }) {
   const [dpr, setDpr] = useState(1.5);
   const [bloom, setBloom] = useState(true);
   const [paused, setPaused] = useState(false);
+  // Потеря WebGL-контекста (сброс драйвера, нехватка памяти GPU, сон ноутбука) — пересоздаём холст,
+  // а не оставляем белый прямоугольник. Состояние сцены (расстановка редактора, фокус) хранится снаружи.
+  const [gen, setGen] = useState(0);
+  const [lost, setLost] = useState(false);
+  const restart = () => {
+    setLost(true); // сразу снимаем холст: композер свечения падает на потерянном контексте
+    window.setTimeout(() => { setGen((g) => g + 1); setLost(false); }, 300);
+  };
   return (
-    <div className="h-full w-full" data-quality={bloom ? "high" : "low"}
+    <div className="h-full w-full" data-quality={bloom ? "high" : "low"} data-gl-restarts={gen}
       onPointerEnter={() => setPaused(true)} onPointerLeave={() => setPaused(false)}>
-    <Canvas dpr={dpr} camera={{ position: [3.2, 17, 22.5], fov: 45 }} gl={{ antialias: true, powerPreference: "high-performance" }}
+    {lost ? <div className="flex h-full items-center justify-center text-xs text-muted">Восстановление 3D…</div> : (
+    <SceneBoundary onError={restart}>
+    <Canvas key={gen} dpr={dpr}
+      onCreated={({ gl }) => {
+        gl.domElement.addEventListener("webglcontextlost", (e) => { e.preventDefault(); restart(); }, { once: true });
+      }} camera={{ position: [3.2, 17, 22.5], fov: 45 }} gl={{ antialias: true, powerPreference: "high-performance" }}
       frameloop={props.motion ? "always" : "demand"}>
       {/* Просадка FPS → разрешение 1× и без свечения; восстановление — только разрешение (без «мигания» эффекта) */}
       <PerformanceMonitor onDecline={() => { setDpr(1); setBloom(false); }} onIncline={() => setDpr(1.5)} flipflops={3} onFallback={() => { setDpr(1); setBloom(false); }} />
       <Scene {...props} bloom={bloom} paused={paused} />
     </Canvas>
+    </SceneBoundary>
+    )}
     </div>
   );
 }

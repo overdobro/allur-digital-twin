@@ -72,6 +72,17 @@ class WorkLog(SQLModel, table=True):
     units: int | None = None
 
 
+class Scenario(SQLModel, table=True):
+    """Сохранённый сценарий редактора 3D: расстановка и итог проверки."""
+    id: int | None = Field(default=None, primary_key=True)
+    name: str
+    author_id: int = Field(foreign_key="user.id")
+    items_json: str  # расстановка объектов
+    summary_json: str  # «было → стало», конфликты, последствия
+    idea_id: int | None = Field(default=None, foreign_key="idea.id")
+    created_at: datetime = Field(default_factory=utcnow)
+
+
 # ---------- подключение ----------
 
 def database_url() -> str:

@@ -27,6 +27,11 @@ class Store {
 }
 
 const Ctx = createContext<Store | null>(null);
+/** Внутри NoBatch детали рисуются обычными мешами — для объектов, которые перетаскивают в редакторе. */
+const NoBatchCtx = createContext(false);
+export function NoBatch({ children }: { children: ReactNode }) {
+  return <NoBatchCtx.Provider value={true}>{children}</NoBatchCtx.Provider>;
+}
 
 const GEO: Record<Kind, THREE.BufferGeometry> = {
   box: new THREE.BoxGeometry(1, 1, 1),
@@ -84,8 +89,9 @@ export function Part({ kind, size, p, c, m, r, rot, dynamic }: {
   rot?: [number, number, number]; dynamic?: boolean;
 }) {
   const store = useContext(Ctx);
+  const noBatch = useContext(NoBatchCtx);
   const ref = useRef<THREE.Group>(null);
-  const batched = !!store && !dynamic;
+  const batched = !!store && !dynamic && !noBatch;
   useLayoutEffect(() => {
     if (!batched || !ref.current) return;
     ref.current.updateWorldMatrix(true, false);

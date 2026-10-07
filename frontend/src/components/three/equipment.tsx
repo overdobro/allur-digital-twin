@@ -1,6 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Part } from "./batch";
+import { JIG_T } from "./editorModel";
 import * as THREE from "three";
 import type { Status } from "../../api/types";
 import { STATUS_HEX } from "../../lib/format";
@@ -150,7 +151,7 @@ export function WarehouseIn() {
 // ---------- кузовной цех ----------
 
 /** 6-осевой робот с клещами точечной сварки (оранжевый, как промышленные роботы на постах геометрии). */
-function Robot({ p, flip, status, phase, motion }: { p: [number, number, number]; flip: number; status: Status; phase: number; motion: boolean }) {
+export function Robot({ p, flip, status, phase, motion }: { p: [number, number, number]; flip: number; status: Status; phase: number; motion: boolean }) {
   const j1 = useRef<THREE.Group>(null), j2 = useRef<THREE.Group>(null), j3 = useRef<THREE.Group>(null), j5 = useRef<THREE.Group>(null);
   const sparks = useRef<THREE.Points>(null);
   const geo = useMemo(() => { const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(30 * 3), 3)); return g; }, []);
@@ -200,7 +201,7 @@ function Robot({ p, flip, status, phase, motion }: { p: [number, number, number]
 }
 
 /** Кондуктор (сварочная оснастка) с красными и жёлтыми прижимами — по фото. */
-function Jig() {
+export function Jig() {
   return (
     <group>
       <B s={[2.3, 0.25, 1.3]} p={[0, 0.2, 0]} c="#cfc8b6" m={0.2} />
@@ -231,8 +232,8 @@ function HangingGun({ x, z, phase, motion }: { x: number; z: number; phase: numb
   );
 }
 
-export function WeldingShop({ abb01, abb04, motion }: { abb01: Status; abb04: Status; motion: boolean }) {
-  const L = zlen("welding"), b = back("welding");
+export function WeldingShop({ motion }: { motion: boolean }) {
+  const L = zlen("welding");
   return (
     <group>
       <At zone="welding" t={0.5}>
@@ -242,17 +243,14 @@ export function WeldingShop({ abb01, abb04, motion }: { abb01: Status; abb04: St
         {[-0.45, -0.2].map((t) => [-1.3, 1.3].map((z) => <B key={`${t}${z}`} s={[0.1, 3.35, 0.1]} p={[t * L, 1.67, z * 1.25]} c={C.red} />))}
       </At>
       {/* Посты подсборок в кондукторах сбоку от линии */}
-      {[0.12, 0.3, 0.48].map((t, i) => (
+      {JIG_T.map((t, i) => (
         <At key={t} zone="welding" t={t}>
-          <group position={[0, 0, b * 2.4]}><Jig /></group>
           <HangingGun x={-0.4} z={-1.3} phase={i} motion={motion} />
           <HangingGun x={0.5} z={1.3} phase={i + 2} motion={motion} />
         </At>
       ))}
-      {/* Пост геометрии: роботы ABB-01 и ABB-04 (данные) с двух сторон кузова */}
+      {/* Пост геометрии: площадка (роботы ABB-01/ABB-04 — объекты редактора, editorModel.ts) */}
       <At zone="welding" t={0.72}>
-        <Robot p={[0, 0, -1.25]} flip={-1} status={abb01} phase={0} motion={motion} />
-        <Robot p={[0.4, 0, 1.25]} flip={1} status={abb04} phase={1.9} motion={motion} />
         <B s={[3.2, 0.06, 3.2]} p={[0.2, 0.01, 0]} c="#3a414b" />
       </At>
       {/* Контроль геометрии: синяя арка с лазерными линиями */}
@@ -367,22 +365,66 @@ function PaintBooth({ status, motion }: { status: Status; motion: boolean }) {
   );
 }
 
-/** Компрессорная и ресиверы — подготовка сжатого воздуха для окраски (типовое оборудование). */
-function Compressors() {
-  const b = back("painting");
+/** Компрессорная станция и ресиверы — подготовка сжатого воздуха для окраски (типовое оборудование, объект редактора). */
+export function CompressorStation() {
   return (
-    <At zone="painting" t={0.78}>
-      <group position={[0, 0, b * 3.3]}>
-        {[-1.4, 0].map((x) => (
-          <group key={x} position={[x, 0, 0]}>
-            <B s={[1.1, 1.1, 0.8]} p={[0, 0.55, 0]} c="#2f6fcc" m={0.3} />
-            <B s={[1.0, 0.05, 0.7]} p={[0, 1.12, 0]} c="#1d4f9a" />
-          </group>
-        ))}
-        {[1.2, 1.9].map((x) => <Cyl key={x} r={0.3} h={1.8} p={[x, 0.9, 0]} c="#d9dee4" />)}
-        <Cyl r={0.06} h={4.5} p={[0, 2.3, -b * 0.4]} rot={[0, 0, Math.PI / 2]} c="#2f6fcc" />
-      </group>
-    </At>
+    <group>
+      {[-1.4, 0].map((x) => (
+        <group key={x} position={[x, 0, 0]}>
+          <B s={[1.1, 1.1, 0.8]} p={[0, 0.55, 0]} c="#2f6fcc" m={0.3} />
+          <B s={[1.0, 0.05, 0.7]} p={[0, 1.12, 0]} c="#1d4f9a" />
+        </group>
+      ))}
+      {[1.2, 1.9].map((x) => <Cyl key={x} r={0.3} h={1.8} p={[x, 0.9, 0]} c="#d9dee4" />)}
+      <Cyl r={0.06} h={3.6} p={[0.25, 2.0, 0]} rot={[0, 0, Math.PI / 2]} c="#2f6fcc" />
+    </group>
+  );
+}
+
+/** Датчик / шкаф контроля на стойке со светодиодом. */
+export function SensorUnit({ status = "ok" }: { status?: Status }) {
+  return (
+    <group>
+      <B s={[0.08, 1.2, 0.08]} p={[0, 0.6, 0]} c="#7d8794" />
+      <B s={[0.4, 0.3, 0.25]} p={[0, 1.3, 0]} c="#e9edf1" />
+      <B s={[0.02, 0.35, 0.02]} p={[0.12, 1.6, 0]} c="#333" />
+      <Beacon p={[0, 1.3, 0.14]} status={status} />
+    </group>
+  );
+}
+
+/** Буфер-накопитель на два кузова. */
+export function BufferRack() {
+  return (
+    <group>
+      {[-1.1, 1.1].map((x) => [-0.6, 0.6].map((z) => <B key={`${x}${z}`} s={[0.08, 1.6, 0.08]} p={[x, 0.8, z]} c="#e8742a" />))}
+      {[0.35, 1.25].map((y) => <B key={y} s={[2.3, 0.06, 1.3]} p={[0, y, 0]} c="#2f6fcc" m={0.2} />)}
+      {[0.38, 1.28].map((y) => <B key={`c${y}`} s={[1.7, 0.3, 0.7]} p={[0, y + 0.18, 0]} c="#3d434b" m={0.5} r={0.4} />)}
+    </group>
+  );
+}
+
+/** Рабочий пост: верстак, экран, инструмент. */
+export function Workstation() {
+  return (
+    <group>
+      <B s={[1.4, 0.06, 0.8]} p={[0, 0.85, 0]} c="#d9a441" m={0} r={0.9} />
+      {[-0.65, 0.65].map((x) => [-0.35, 0.35].map((z) => <B key={`${x}${z}`} s={[0.05, 0.85, 0.05]} p={[x, 0.42, z]} c="#7d8794" />))}
+      <B s={[0.5, 0.32, 0.03]} p={[0.3, 1.1, -0.3]} c="#3fd18a" />
+      <B s={[0.35, 0.18, 0.25]} p={[-0.35, 0.97, 0]} c="#c32a37" />
+    </group>
+  );
+}
+
+/** Пост контроля с камерами машинного зрения (арка над линией). */
+export function InspectionArch() {
+  return (
+    <group>
+      {[-1.15, 1.15].map((z) => <B key={z} s={[0.16, 2.3, 0.16]} p={[0, 1.15, z]} c="#e9edf1" />)}
+      <B s={[0.25, 0.18, 2.5]} p={[0, 2.3, 0]} c="#e9edf1" />
+      {[-0.7, 0, 0.7].map((z) => <B key={z} s={[0.16, 0.14, 0.16]} p={[0, 2.12, z]} c="#1c2229" />)}
+      {[-1.0, 1.0].map((z) => <B key={`s${z}`} s={[0.14, 0.14, 0.14]} p={[0, 1.2, z * 1.0]} c="#1c2229" />)}
+    </group>
   );
 }
 
@@ -409,7 +451,6 @@ export function PaintShop({ booth, motion }: { booth: Status; motion: boolean })
       <Oven />
       <SealingAndPolish />
       <PaintBooth status={booth} motion={motion} />
-      <Compressors />
     </group>
   );
 }

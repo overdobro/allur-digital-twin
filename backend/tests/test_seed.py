@@ -37,4 +37,4 @@ def test_health_and_meta():
     assert client.get("/api/health").json()["status"] == "ok"
     meta = client.get("/api/meta").json()
     assert meta["targets"]["monthly_output_min"] == 5500
-    assert len(meta["assumptions"]) == 8
+    assert len(meta["assumptions"]) == 9  # A1–A9

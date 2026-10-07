@@ -108,3 +108,20 @@ export type Role = "manager" | "employee" | "student";
 export interface User {
   id: number; login: string; role: Role; name: string; title: string; section_id: string | null; course: number | null;
 }
+
+export interface PlanModel {
+  model: string; share_pct: number; month_plan: number; shift_plan: number; day_plan: number;
+  fact_last_shift: number; fact_period: number; plan_period: number; forecast_month: number; forecast_completion_pct: number;
+  status: Status; calculated: boolean;
+}
+export interface PlanRisk {
+  section_id: string; section: string; level: { code: "low" | "medium" | "high"; label: string }; stage: "realized" | "emerging";
+  plan_completion_pct: number; fact: number; plan: number; why: string; bottleneck: boolean;
+}
+export interface ProductionPlan {
+  working_days: number; shifts_per_day: number; shift_plan: number; target_month: number; models_month_total: number;
+  fact_period: number; plan_period: number; shifts_in_data: number; completion_period_pct: number;
+  forecast_month: number; forecast_formula: string; gap_target: number; gap_models: number; required_per_shift: number;
+  models: PlanModel[]; by_date: { date: string; plan: number; fact: number; deviation: number; completion_pct: number; status: Status }[];
+  risks: PlanRisk[]; note: string;
+}
