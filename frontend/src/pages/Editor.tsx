@@ -36,7 +36,7 @@ export default function Editor() {
   const [fromIdea, setFromIdea] = useState<{ id: number; title: string; message: string; section: string | null } | null>(null);
   useEffect(() => {
     if (!ideaId || STATIC) return;
-    ideasApi.get(Number(ideaId)).then((i) => {
+    ideasApi.find(ideaId).then((i) => {
       const d = draftFromIdea(base, i.ai?.scenario ?? null);
       setItems(d.items);
       setSelectedId(d.focusId);

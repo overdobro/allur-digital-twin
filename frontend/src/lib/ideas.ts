@@ -31,9 +31,19 @@ export const ideasApi = {
   create: (body: { title: string; text: string; section_id: string | null }) => send<Idea>("POST", "/ideas", body),
   reevaluate: (id: number) => send<Idea>("POST", `/ideas/${id}/reevaluate`),
   check3d: (id: number, body: Omit<Check3d, "checked_at">) => send<Idea>("POST", `/ideas/${id}/check3d`, body),
+  /** Идея по параметру ссылки: число — id; «demo» — демо-идея презентации (id меняется после сброса демо-данных). */
+  find: async (param: string): Promise<Idea> => {
+    if (/^\d+$/.test(param)) return send<Idea>("GET", `/ideas/${param}`);
+    const found = param === "demo" ? (await send<Idea[]>("GET", "/ideas/rating")).find(isDemoIdea) : undefined;
+    if (!found) throw new Error("Идея не найдена");
+    return found;
+  },
   review: (id: number, body: { status: IdeaStatus; expert_score?: number | null; expert_comment?: string | null }) =>
     send<Idea>("PATCH", `/ideas/${id}/review`, body),
 };
+
+/** Демо-идея для презентации: «Второй робот на посту геометрии сварки» из начального набора. */
+export const isDemoIdea = (i: Idea) => i.title.startsWith("Второй робот на посту геометрии");
 
 export const STATUS_IDEA: Record<IdeaStatus, { label: string; color: string }> = {
   submitted: { label: "Подана", color: "#8696a8" },

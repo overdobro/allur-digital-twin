@@ -5,7 +5,7 @@ import { useApi } from "../../api/client";
 import { IdeaAiCard } from "../../components/IdeaAiCard";
 import { Card, Loading, PageTitle } from "../../components/ui";
 import { SECTION_NAME } from "../../lib/auth";
-import { GRANT_CHAIN, ideasApi, STATUS_IDEA, type Idea, type IdeaStatus } from "../../lib/ideas";
+import { GRANT_CHAIN, ideasApi, isDemoIdea, STATUS_IDEA, type Idea, type IdeaStatus } from "../../lib/ideas";
 import { IdeaRow } from "./IdeasPage";
 
 /** Руководитель / эксперт: отбор идей, оценка 1–10, шорт-лист → финал → победитель гранта. */
@@ -60,11 +60,12 @@ export default function ManagerIdeas() {
   const [list, setList] = useState<Idea[] | null>(null);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
   const [params] = useSearchParams();
-  const [selected, setSelected] = useState<number | null>(params.get("idea") ? Number(params.get("idea")) : null);
+  const ideaParam = params.get("idea");
+  const [selected, setSelected] = useState<number | null>(ideaParam && /^\d+$/.test(ideaParam) ? Number(ideaParam) : null);
   const all = list ?? r.data;
   const shown = useMemo(() => (all ?? []).filter((i) => filter === "all" || i.status === filter), [all, filter]);
   if (!all) return <Loading error={r.error} />;
-  const cur = all.find((i) => i.id === selected) ?? shown[0];
+  const cur = all.find((i) => i.id === selected) ?? (ideaParam === "demo" ? all.find(isDemoIdea) : undefined) ?? shown[0];
   const count = (s: IdeaStatus) => all.filter((i) => i.status === s).length;
   const onSaved = (i: Idea) => setList(all.map((x) => (x.id === i.id ? i : x)));
   return (

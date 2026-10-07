@@ -20,11 +20,11 @@ export default function Check3D() {
   const [params] = useSearchParams();
   const { user } = useAuth();
   const { meta } = useApp();
-  const id = Number(params.get("idea"));
+  const param = params.get("idea") ?? "";
   const [idea, setIdea] = useState<Idea | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  useEffect(() => { ideasApi.get(id).then(setIdea).catch((e) => setError(String(e.message ?? e))); }, [id]);
+  useEffect(() => { ideasApi.find(param).then(setIdea).catch((e) => setError(String(e.message ?? e))); }, [param]);
 
   const day = meta?.dates[meta.dates.length - 1] ?? null;
   const ov = useApi(() => api.overview(day), [day]);
