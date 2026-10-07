@@ -50,8 +50,9 @@ class DemoIn(BaseModel):
 
 @router.get("/hint")
 def hint():
-    """Подсказку с демо-паролем показываем, только пока пароль руководителя не задан через MANAGER_PASSWORD."""
-    return {"manager_demo_password": None if os.getenv("MANAGER_PASSWORD") else "allur2026"}
+    """Подсказку с демо-паролем показываем, только пока пароль руководителя не сменён через MANAGER_PASSWORD."""
+    custom = os.getenv("MANAGER_PASSWORD", "allur2026") != "allur2026"
+    return {"manager_demo_password": None if custom else "allur2026"}
 
 
 @router.get("/accounts")

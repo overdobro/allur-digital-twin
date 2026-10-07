@@ -102,7 +102,7 @@ def effect_calc(i: dict, working_days: int, defect_target_pct: float, downtime_c
         "working_days": working_days,
         "margin_per_car": margin_per_car,
         "scenarios": scenarios,
-        "note": "Оценка расчётная, на 2 днях данных. Денежный эффект считается только при вводе маржи на автомобиль — в данных кейса её нет.",
+        "note": "Оценка расчётная, на 2 днях данных. Денежный эффект считается только при вводе маржи на автомобиль — в тестовых данных её нет.",
     }
 
 

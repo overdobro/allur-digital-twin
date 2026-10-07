@@ -73,7 +73,7 @@ function Shell({ nav, children, manager }: { nav: NavItem[]; children: ReactNode
         </nav>
         <div className="mt-auto px-5 py-4 text-[11px] leading-relaxed text-muted">
           {manager && <NavLink to="/assumptions" className="underline decoration-dotted hover:text-slate-200">Допущения и методика</NavLink>}
-          <div className="mt-1">Данные: тестовый набор кейса</div>
+          <div className="mt-1">Данные: тестовый набор, смены 01–02.10</div>
           {manager && !STATIC && <DemoReset />}
         </div>
       </aside>
@@ -88,7 +88,7 @@ function Shell({ nav, children, manager }: { nav: NavItem[]; children: ReactNode
               </NavLink>
             ))}
           </nav>
-          <div className="hidden text-sm text-muted md:block">Кейс №2 · АО «Группа компаний АЛЛЮР»</div>
+          <div className="hidden text-sm text-muted md:block">АО «Группа компаний АЛЛЮР» · Костанай</div>
           <div className="flex items-center gap-2">
             {manager && <span className="hidden sm:block"><TourButton /></span>}
             <span className="hidden sm:block"><MotionToggle /></span>

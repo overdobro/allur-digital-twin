@@ -7,7 +7,7 @@ import { useApp } from "../../lib/context";
 import { fmtDate, fmtPct, STATUS_HEX } from "../../lib/format";
 import { peopleApi, timeKz, type Attendance } from "../../lib/people";
 
-/** «Моя смена»: отметка выхода, задание участка по данным кейса, оборудование, подсказка AI для участка. */
+/** «Моя смена»: отметка выхода, задание участка по тестовым данным, оборудование, подсказка AI для участка. */
 export default function EmployeeShift() {
   const { user } = useAuth();
   const { meta } = useApp();
@@ -66,7 +66,7 @@ export default function EmployeeShift() {
                 ))}
               </div>
             ) : <p className="text-sm text-muted">По участку нет данных в тестовом наборе.</p>}
-            <p className="mt-2 text-[11px] text-muted">Последняя смена в данных кейса — {day ? fmtDate(day) : "—"}.</p>
+            <p className="mt-2 text-[11px] text-muted">Последняя смена в тестовых данных — {day ? fmtDate(day) : "—"}.</p>
             {s.equipment.length > 0 && (
               <ul className="mt-3 space-y-1.5 text-sm">
                 {s.equipment.map((e) => (

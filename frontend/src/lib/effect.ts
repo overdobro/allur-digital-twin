@@ -52,6 +52,6 @@ export function effectCalc(i: EffectInputs, workingDays: number, defectTargetPct
     working_days: workingDays,
     margin_per_car: marginPerCar,
     scenarios,
-    note: "Оценка расчётная, на 2 днях данных. Денежный эффект считается только при вводе маржи на автомобиль — в данных кейса её нет.",
+    note: "Оценка расчётная, на 2 днях данных. Денежный эффект считается только при вводе маржи на автомобиль — в тестовых данных её нет.",
   };
 }

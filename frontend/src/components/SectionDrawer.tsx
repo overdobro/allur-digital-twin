@@ -29,7 +29,7 @@ function Body({ id }: { id: string }) {
     return (
       <div>
         <h2 className="text-2xl font-semibold">{s.name}</h2>
-        <p className="mt-3 text-sm text-muted">По этому участку в тестовых данных кейса нет записей — статус «нет данных» (допущение A8).</p>
+        <p className="mt-3 text-sm text-muted">По этому участку в тестовых данных нет записей — статус «нет данных» (допущение A8).</p>
       </div>
     );
   }

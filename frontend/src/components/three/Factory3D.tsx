@@ -17,7 +17,7 @@ import { Hall, ZoneOutline } from "./hall";
 import { pointAt, TRACK_END, TRACK_START, zoneCenter, ZONES } from "./layout";
 
 /**
- * 3D-модель цеха по фото и описанию процессов завода Allur (docs/allur_process.md). Компоновка типовая и условная.
+ * 3D-модель цеха по фото и описанию процессов завода Allur. Компоновка типовая и условная.
  * Кузова — общая с 2D симуляция (lib/flowSim) на U-образном пути (layout.ts), шаг внутри useFrame без перерисовки React.
  */
 

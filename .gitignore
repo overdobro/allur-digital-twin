@@ -5,12 +5,9 @@ __pycache__/
 frontend/node_modules/
 frontend/dist/
 *.png
-!docs/**
 .idea/
 frontend/public/static-api/
 /public/
-# Фото из 2ГИС — сторонние снимки, только локальный референс
-docs/webp/
 e2e.png
 .claude/
 # Рабочие заметки и служебные инструкции — только локально
@@ -20,4 +17,6 @@ AGENTS.md
 .vercel/
 backend/data/
 *.tsbuildinfo
-docs/img.png
+# Исходные материалы (ТЗ, тестовые данные, фото, заметки) — только локально; в репозитории — документация проекта
+/docs/*
+!/docs/SYSTEM.md

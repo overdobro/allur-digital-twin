@@ -7,7 +7,7 @@ export default function Assumptions() {
   const t = meta.targets;
   return (
     <>
-      <PageTitle title="Допущения и методика" subtitle="Всё, что вычислено, а не взято из данных кейса напрямую" />
+      <PageTitle title="Допущения и методика" subtitle="Всё, что вычислено, а не взято из тестовых данных напрямую" />
       <div className="grid gap-4 lg:grid-cols-2">
         <Card title="Допущения">
           <ol className="space-y-2 text-sm">
@@ -19,7 +19,7 @@ export default function Assumptions() {
             ))}
           </ol>
         </Card>
-        <Card title="Нормативы кейса">
+        <Card title="Нормативы завода">
           <ul className="space-y-2 text-sm text-slate-300">
             <li>Режим: {t.shifts_per_day} смены по {t.shift_hours} ч</li>
             <li>OEE ≥ {t.oee_min_pct}%</li>

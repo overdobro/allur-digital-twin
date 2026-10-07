@@ -84,7 +84,7 @@ def _equipment_pattern(name: str) -> str:
 
 
 def specificity(title: str, text: str, repo: Repository) -> float:
-    """Конкретность идеи: упомянуто оборудование из данных кейса (0,5) и измеримый механизм (0,5). Считает код."""
+    """Конкретность идеи: упомянуто оборудование из тестовых данных (0,5) и измеримый механизм (0,5). Считает код."""
     t = f"{title} {text}".lower()
     named = any(re.search(_equipment_pattern(d["equipment"]), t) for d in repo.downtime)
     return 0.5 * named + 0.5 * bool(re.search(MEASURABLE, t))
@@ -141,7 +141,7 @@ KIND_INFO: dict[str, dict] = {
                   "how": "Меняет расстановку или состав оборудования — эффект на выпуск можно проверить на 3D-модели до покупки."},
     "maintenance": {"label": "мера по обслуживанию оборудования",
                     "how": "Снижает внезапные остановы: оборудование чинят до отказа, а не после.",
-                    "risks": ["история отказов короткая — в кейсе 2 дня данных", "запас ЗИП замораживает оборотные средства"],
+                    "risks": ["история отказов короткая — в данных только 2 дня", "запас ЗИП замораживает оборотные средства"],
                     "check": "число внезапных остановов и их длительность до и после"},
     "process": {"label": "организационная мера",
                 "how": "Дешёвая и быстрая мера: эффект зависит от того, соблюдают ли её на каждой смене.",
@@ -221,14 +221,14 @@ def scenario_from_text(t: str) -> tuple[str | None, str]:
 
 
 def rules_evaluate(title: str, text: str, section_id: str | None, repo: Repository) -> dict:
-    """Оценка без LLM: участок, тип идеи и её связь с реальной проблемой участка по данным кейса."""
+    """Оценка без LLM: участок, тип идеи и её связь с реальной проблемой участка по тестовым данным."""
     t = f"{title} {text}".lower()
     sec = section_id or detect_section(t, repo)
     risks_by = {r["section_id"]: r for r in section_risks(repo)}
     sr = risks_by.get(sec)
     problem = bool(sr and sr["level"]["code"] in ("high", "medium"))
     evidence = sr["factors"][0]["evidence"] if sr and sr["factors"] else None
-    # Высокий эффект — только если идея бьёт в драйвер проблемы участка (по данным кейса)
+    # Высокий эффект — только если идея бьёт в драйвер проблемы участка (по тестовым данным)
     on_driver = bool(sec and re.search(PROBLEM_DRIVERS.get(sec, r"$^"), t))
     obj, action = scenario_from_text(t)
     kind = idea_kind(t, obj)
@@ -255,7 +255,7 @@ def rules_evaluate(title: str, text: str, section_id: str | None, repo: Reposito
     if complexity == "high" and kind != "equipment":
         risk_list.append("нужны инвестиции и согласование с производством")
     if not problem:
-        risk_list.append("эффект не подтверждён данными кейса: на участке нет острых отклонений")
+        risk_list.append("эффект не подтверждён тестовыми данными: на участке нет острых отклонений")
     risk_list.append("ограниченные данные: 2 дня наблюдений")
 
     next_step = "expert" if realism == "low" else ("3d_check" if obj else ("pilot" if complexity == "low" else "expert"))
@@ -271,7 +271,7 @@ def rules_evaluate(title: str, text: str, section_id: str | None, repo: Reposito
         elif problem and evidence:
             summary += f" На участке есть отклонение ({_lc(evidence)}), но идея направлена не на него — эффект для плана ниже."
         else:
-            summary += " По данным кейса острых отклонений на участке нет — эффект скорее поддерживающий."
+            summary += " По тестовым данным острых отклонений на участке нет — эффект скорее поддерживающий."
     summary += " " + info["how"]
     if obj and sec:
         summary += f" Предлагаемое изменение для 3D: {ACTION_WORD[action]} «{OBJECT_WORD.get(obj, obj)}»."

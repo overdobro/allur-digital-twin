@@ -9,7 +9,7 @@ import { AdviceSource } from "./AiRisk";
 function PlanBar({ f }: { f: Forecast }) {
   const max = Math.max(f.target, f.forecast, f.models_plan_total) * 1.05;
   const rows = [
-    { label: "Цель кейса", v: f.target, color: "#e2e8f0", note: "≥ 5 500 авто/мес" },
+    { label: "Цель завода", v: f.target, color: "#e2e8f0", note: "≥ 5 500 авто/мес" },
     { label: "Прогноз по текущему темпу", v: f.forecast, color: "#3987e5", note: f.forecast_formula },
     { label: "Потолок при 100% сменного плана", v: f.capacity_at_plan, color: "#2f6fcc", note: f.capacity_formula },
     { label: "Сумма плана по моделям", v: f.models_plan_total, color: "#64748b", note: f.models_plan.map((m) => `${m.model.replace("Chevrolet ", "")} ${fmtInt(m.plan)}`).join(" + ") },
@@ -150,7 +150,7 @@ export default function Executive() {
         </div>
         <div data-tour="exec-effect"><EffectCalc defaultDays={forecast.data.working_days} /></div>
       </div>
-      {meta.data && <p className="mt-4 text-[11px] text-muted">Расчёты — на тестовых данных кейса за 2 дня; допущения: <Link to="/assumptions" className="underline">A1–A8</Link>.</p>}
+      {meta.data && <p className="mt-4 text-[11px] text-muted">Расчёты — на тестовых данных за 2 дня; допущения: <Link to="/assumptions" className="underline">A1–A8</Link>.</p>}
     </>
   );
 }

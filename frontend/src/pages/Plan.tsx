@@ -17,7 +17,7 @@ export default function Plan() {
   const plan = (m: (typeof d.models)[number]) => (h === "shift" ? m.shift_plan : h === "day" ? m.day_plan : m.month_plan);
   const fact = (m: (typeof d.models)[number]) => (h === "shift" ? m.fact_last_shift : h === "day" ? m.fact_last_shift * d.shifts_per_day : m.forecast_month);
   const tiles: [string, string, string, string][] = [
-    ["Цель кейса, авто/мес", fmtInt(d.target_month), "норматив", "#e2e8f0"],
+    ["Цель завода, авто/мес", fmtInt(d.target_month), "норматив", "#e2e8f0"],
     ["План по моделям, авто/мес", fmtInt(d.models_month_total), `${d.models_month_total < d.target_month ? "ниже цели на " + fmtInt(d.target_month - d.models_month_total) : ""}`, "#e2e8f0"],
     ["Прогноз месяца", fmtInt(d.forecast_month), d.forecast_formula, d.gap_target < 0 ? STATUS_HEX.critical : STATUS_HEX.ok],
     ["Факт за период", `${d.fact_period} / ${d.plan_period}`, `${d.shifts_in_data} смены в данных · ${fmtPct(d.completion_period_pct)}%`, "#e2e8f0"],
@@ -86,7 +86,7 @@ export default function Plan() {
             <ul className="space-y-2 text-sm text-slate-200">
               <li>• План по моделям ({fmtInt(d.models_month_total)}) выполним при текущем темпе: прогноз {fmtInt(d.forecast_month)} (+{fmtInt(d.gap_models)}).</li>
               <li className="text-crit">• Цель {fmtInt(d.target_month)} — нет: не хватает {fmtInt(-d.gap_target)} авто; нужно ≈{fmt(d.required_per_shift)} авто/смену вместо {d.shift_plan}.</li>
-              <li>• Сумма плана по моделям ниже цели кейса на {fmtInt(d.target_month - d.models_month_total)} — расхождение исходных данных.</li>
+              <li>• Сумма плана по моделям ниже цели завода на {fmtInt(d.target_month - d.models_month_total)} — расхождение исходных данных.</li>
             </ul>
           </Card>
           <Card title="Зоны риска невыполнения плана">

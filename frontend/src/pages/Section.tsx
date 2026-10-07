@@ -27,7 +27,7 @@ export default function Section() {
   if (!sec.data) return <Loading error={sec.error} />;
   const s = sec.data;
   if (!s.trend.length) {
-    return <PageTitle title={s.name} subtitle="По этому участку в тестовых данных кейса нет записей — статус «нет данных» (допущение A8)." />;
+    return <PageTitle title={s.name} subtitle="По этому участку в тестовых данных нет записей — статус «нет данных» (допущение A8)." />;
   }
   const r = risk.data?.risks.find((x) => x.section_id === id);
   const [a, b] = [s.trend[0], s.trend[s.trend.length - 1]];
