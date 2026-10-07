@@ -19,3 +19,5 @@ CLAUDE.md
 AGENTS.md
 .vercel/
 backend/data/
+*.tsbuildinfo
+docs/img.png
